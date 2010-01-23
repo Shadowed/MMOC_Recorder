@@ -950,7 +950,14 @@ function Sigrie:PET_STABLE_SHOW()
 end
 
 function Sigrie:TAXIMAP_OPENED()
-	self:RecordCreatureData("flightmaster", "npc")
+	local npcData = self:RecordCreatureData("flightmaster", "npc")
+	for i=1, NumTaxiNodes() do
+		if( TaxiNodeGetType(i) == "CURRENT" ) then
+			npcData.taxiNode = TaxiNodeName(i)
+			debug(3, "Set taxi node to %s.", npcData.taxiNode)
+			break
+		end
+	end
 end
 
 function Sigrie:BANKFRAME_OPENED()
