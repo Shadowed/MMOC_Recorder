@@ -953,8 +953,8 @@ function Sigrie:TAXIMAP_OPENED()
 	local npcData = self:RecordCreatureData("flightmaster", "npc")
 	for i=1, NumTaxiNodes() do
 		if( TaxiNodeGetType(i) == "CURRENT" ) then
-			npcData.taxiNode = TaxiNodeName(i)
-			debug(3, "Set taxi node to %s.", npcData.taxiNode)
+			npcData.info.taxiNode = TaxiNodeName(i)
+			debug(3, "Set taxi node to %s.", npcData.info.taxiNode)
 			break
 		end
 	end
