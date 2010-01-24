@@ -4,9 +4,10 @@ local L = Sigrie.L
 local CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo = CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo
 local GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText = GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText
 
-local DEBUG_LEVEL = 3
+local DEBUG_LEVEL = select(6, GetAddOnInfo("TestCode")) and 0 or 4
 local ALLOWED_COORD_DIFF = 0.02
-local LOOT_EXPIRATION = 20 * 60
+local LOOT_EXPIRATION = 10 * 60
+local ZONE_DIFFICULTY = 0
 
 local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000}
 local BATTLEFIELD_TYPES = {["av"] = 1, ["wsg"] = 2, ["ab"] = 3, ["nagrand"] = 4, ["bem"] = 5, ["all_arenas"] = 6, ["eots"] = 7, ["rol"] = 8, ["sota"] = 9, ["dalaran"] = 10, ["rov"] = 11, ["ioc"] = 30, ["all_battlegrounds"] = 32}
@@ -33,14 +34,15 @@ function Sigrie:InitializeDB()
 	end
 	
 	-- Initialize the database
-	SigrieDB = SigrieDB or {items = {}, npcs = {}, objects = {}, quests = {}}
+	SigrieDB = SigrieDB or {}
 	SigrieDB.guid = guid
 	SigrieDB.class = select(2, UnitClass("player"))
 	SigrieDB.race = string.upper(select(2, UnitRace("player")))
 	SigrieDB.version = version
 	SigrieDB.build = build
 	SigrieDB.locale = GetLocale()
-	self.db = SigrieDB
+
+	self.db = {}
 end
 
 function Sigrie:ADDON_LOADED(event, addon)
@@ -48,6 +50,13 @@ function Sigrie:ADDON_LOADED(event, addon)
 	self:UnregisterEvent("ADDON_LOADED")
 	
 	self:InitializeDB()
+	if( SigrieDB.error ) then
+		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Message: %s"], SigrieDB.error.msg))
+		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Trace: %s"], SigrieDB.error.trace))
+		self:Print(L["An error happened while Sigrie was serializing your data, please report the above error. You might have to scroll up to see it all."])
+		SigrieDB.error = nil
+	end
+	
 	self.tooltip = CreateFrame("GameTooltip", "SigrieTooltip", UIParent, "GameTooltipTemplate")
 	self.tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	self.tooltip:Hide()
@@ -82,18 +91,70 @@ function Sigrie:ADDON_LOADED(event, addon)
 	self:RegisterEvent("BATTLEFIELDS_SHOW")
 	self:RegisterEvent("CHAT_MSG_SYSTEM")
 	self:RegisterEvent("CONFIRM_BINDER")
+	self:RegisterEvent("PLAYER_LOGOUT")
+	self:RegisterEvent("PLAYER_DIFFICULTY_CHANGED")
+	self:RegisterEvent("UPDATE_INSTANCE_INFO")
+	self:RegisterEvent("PLAYER_ENTERING_WORLD")
+	self:RegisterEvent("ZONE_CHANGED_NEW_AREA")	
 		
 	self:PLAYER_LEAVING_WORLD()
+end
+
+-- For pulling data out of the actual database. This isn't the most efficient system compared to a transparent metatable
+-- like I normally use, but because of how the table is structured it's a lot easier to cache "minor" bits of data instead of the ENTIRE table and unserialize it as we need it, also simplifies serializing it again
+-- The downside is, it creates duplicate parent and child tables, but it saves a lot more on not loading the excess data
+function Sigrie:GetBasicData(parent, key)
+	self.db[parent] = self.db[parent] or {}
+	if( self.db[parent][key] ) then return self.db[parent][key] end
+	
+	-- Load it out of the database, we've already got it
+	if( SigrieDB[parent] and SigrieDB[parent][key] ) then
+		local func, msg = loadstring("return " .. SigrieDB[parent][key])
+		if( func ) then
+			self.db[parent][key] = func()
+		else
+			error(msg, 3)
+			return nil
+		end
+	else
+		self.db[parent][key] = {}
+	end
+	
+	self.db[parent][key].START_SERIALIZER = true
+	return self.db[parent][key]
+end
+
+function Sigrie:GetData(parent, child, key)
+	self.db[parent] = self.db[parent] or {}
+	self.db[parent][child] = self.db[parent][child] or {}
+	if( self.db[parent][child][key] ) then return self.db[parent][child][key] end
+	
+	-- Load it out of the database, we've already got it
+	if( SigrieDB[parent] and SigrieDB[parent][child] and SigrieDB[parent][child][key] ) then
+		local func, msg = loadstring("return " .. SigrieDB[parent][child][key])
+		if( func ) then
+			self.db[parent][child][key] = func()
+		else
+			error(msg, 3)
+			return nil
+		end
+	else
+		self.db[parent][child][key] = {}
+	end
+	
+	self.db[parent][child][key].START_SERIALIZER = true
+	return self.db[parent][child][key]
 end
 
 -- NPC identification
 local npcIDMetatable = {
 	__index = function(tbl, guid)
-		rawset(tbl, guid, tonumber(string.sub(guid, -12, -7), 16) or false)
-		return tbl[guid]
+		local id = tonumber(string.sub(guid, -12, -7), 16) or false
+		rawset(tbl, guid, id)
+		return id
 	end
-}
 
+}
 local npcTypeMetatable = {
 	__index = function(tbl, guid)
 		local type = tonumber(string.sub(guid, 3, 5), 16)
@@ -111,30 +172,9 @@ local npcTypeMetatable = {
 	end,
 }
 
--- Determining if an item is for a quest
-local questItemMetatable = {
-	__index = function(tbl, link)
-		-- Not everything uses the Quest type flags, Demonic Rune Stone for example.
-		-- as this requires localization, it's good practice to do the tooltip scan if the type checks fail
-		local itemType, subType = select(6, GetItemInfo(link))
-		if( itemType == L["Quest"] and subType == L["Quest"] ) then
-			rawset(tbl, link, true)
-			return true
-		end
-		
-		Sigrie.tooltip:SetOwner(UIParent, "ANCHOR_NONE")
-		Sigrie.tooltip:SetHyperlink(link)
-		
-		local questItem = SigrieTooltipTextLeft2:GetText() == ITEM_BIND_QUEST
-		rawset(tbl, link, questItem)
-		return questItem
-	end
-}
-
 function Sigrie:PLAYER_LEAVING_WORLD()
 	self.NPC_ID = setmetatable({}, npcIDMetatable)
 	self.NPC_TYPE = setmetatable({}, npcTypeMetatable)
-	self.QUEST_ITEM = setmetatable({}, questItemMetatable)
 end
 
 local function parseText(text)
@@ -229,17 +269,10 @@ function Sigrie:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourceG
 	
 	if( ( eventType == "SPELL_CAST_START" or eventType == "SPELL_CAST_SUCCESS" ) and bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
 		local spellID = ...
-		local npcID = self.NPC_ID[sourceGUID]
-		local difficulty = GetInstanceDifficulty()
-		local inInstance, instanceType = IsInInstance()
-		difficulty = instanceType == "raid" and (difficulty + 100) or inInstance and difficulty or 0
-		
-		self.db.npcs = self.db.npcs or {}
-		self.db.npcs[difficulty] = self.db.npcs[difficulty] or {}
-		self.db.npcs[difficulty][npcID] = self.db.npcs[difficulty][npcID] or {}
-		self.db.npcs[difficulty][npcID].spells = self.db.npcs[difficulty][npcID].spells or {}
-		self.db.npcs[difficulty][npcID].spells[spellID] = true
-		debug(4, "%s (%d) casting spell %s (%d)", sourceName, npcID, select(2, ...), spellID)
+		local npcData = self:GetData("npcs", ZONE_DIFFICULTY, self.NPC_ID[sourceGUID])
+		npcData.spells = npcData.spells or {}
+		npcData.spells[spellID] = true
+		debug(4, "%s casting spell %s (%d)", sourceName, select(2, ...), spellID)
 		
 	elseif( eventType == "PARTY_KILL" and bit.band(destFlags, COMBATLOG_OBJECT_REACTION_HOSTILE) == COMBATLOG_OBJECT_REACTION_HOSTILE and bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
 		repGain.npcID = self.NPC_ID[destGUID]
@@ -274,17 +307,10 @@ function Sigrie:COMBAT_TEXT_UPDATE(event, type, faction, amount)
 	
 	if( repGain.timeout and repGain.timeout >= GetTime() and not self:HasReputationModifier() ) then
 		local npcID = repGain.npcID
-		local difficulty = GetInstanceDifficulty()
-		local inInstance, instanceType = IsInInstance()
-		difficulty = instanceType == "raid" and (difficulty + 100) or inInstance and difficulty or 0
-		
-		self.db.npcs = self.db.npcs or {}
-		self.db.npcs[difficulty] = self.db.npcs[difficulty] or {}
-		self.db.npcs[difficulty][npcID] = self.db.npcs[difficulty][npcID] or {}
-		self.db.npcs[difficulty][npcID].info = self.db.npcs[difficulty][npcID].info or {}
-		
-		self.db.npcs[difficulty][npcID].info.faction = faction
-		self.db.npcs[difficulty][npcID].info.factionAmount = amount
+		local npcData = self:GetData("npcs", difficulty, npc)
+		npcData.info = npcData.info or {}
+		npcData.info.faction = faction
+		npcData.info.factionAmount = amount
 		
 		debug(2, "NPC #%d gives %d %s faction", npcID, amount, faction)
 	end
@@ -367,19 +393,8 @@ end
 
 -- For recording a location by zone, primarily for fishing
 function Sigrie:RecordZoneLocation(type)
-	local difficulty = GetInstanceDifficulty()
-	local currentLevel = GetCurrentMapDungeonLevel()
-	local zone = GetMapInfo()
-	local inInstance, instanceType = IsInInstance()
-	difficulty = instanceType == "raid" and (difficulty + 100) or inInstance and difficulty or 0
-
-	self.db.zone = self.db.zone or {}
-	self.db.zone[difficulty] = self.db.zone[difficulty] or {}
-	self.db.zone[difficulty][zone] = self.db.zone[difficulty][zone] or {}
-	self.db.zone[difficulty][zone][type] = self.db.zone[difficulty][zone][type] or {}
-
-	local zoneData = self.db.zone[difficulty][zone][type]
-	local x, y, _, level = self:RecordLocation()
+	local x, y, zone, level = self:RecordLocation()
+	local zoneData = self:GetData("zone", ZONE_DIFFICULTY, zone)
 	
 	-- See if we already have an entry for them
 	for i=1, #(zoneData), 4 do
@@ -408,15 +423,7 @@ end
 
 -- Location, location, location
 function Sigrie:RecordDataLocation(type, npcID, isGeneric)
-	local difficulty = GetInstanceDifficulty()
-	local inInstance, instanceType = IsInInstance()
-	difficulty = instanceType == "raid" and (difficulty + 100) or inInstance and difficulty or 0
-
-	self.db[type] = self.db[type] or {}
-	self.db[type][difficulty] = self.db[type][difficulty] or {}
-	self.db[type][difficulty][npcID] = self.db[type][difficulty][npcID] or {}
-	
-	local npcData = self.db[type][difficulty][npcID]
+	local npcData = self:GetData(type, ZONE_DIFFICULTY, npcID)
 	local x, y, zone, level = self:RecordLocation()
 	local coordModifier = isGeneric and 200 or 0
 	
@@ -462,19 +469,12 @@ function Sigrie:GetCreatureDB(unit)
 	local guid = UnitGUID(unit)
 	local npcID, npcType = self.NPC_ID[guid], self.NPC_TYPE[guid]
 	if( not npcID or not npcType ) then return end
-	
-	local difficulty = GetInstanceDifficulty()
-	local inInstance, instanceType = IsInInstance()
-	difficulty = instanceType == "raid" and (difficulty + 100) or inInstance and difficulty or 0
 
-	self.db.npcs = self.db.npcs or {}
-	self.db.npcs[difficulty] = self.db.npcs[difficulty] or {}
-	self.db.npcs[difficulty][npcID] = self.db.npcs[difficulty][npcID] or {}
-	return self.db.npcs[difficulty][npcID], npcID, npcType
+	return self:GetData("nps", ZONE_DIFFICULTY, npcID), npcID, npcType
 end
 
 function Sigrie:RecordCreatureType(npcData, type)
-	npcData.bitType = npcData.bitType and bit.bor(npcData.bitType, NPC_TYPES[type]) or NPC_TYPES[type]
+	npcData.info.bitType = npcData.info.bitType and bit.bor(npcData.info.bitType, NPC_TYPES[type]) or NPC_TYPES[type]
 	debug(3, "Recording npc %s, type %s", npcData.info and npcData.info.name or "nil", type)
 end
 
@@ -668,12 +668,11 @@ function Sigrie:LOOT_OPENED()
 		-- This has a parent item like Milling, Prospecting or Disenchanting, so record the data their
 		elseif( self.activeSpell.object.parentItem ) then
 			local itemID = tonumber(string.match(self.activeSpell.item, "item:(%d+)"))
-			self.db.items[itemID] = self.db.items[itemID] or {}
-			npcData = self.db.items[itemID]
+			npcData = self:GetBasicData("items", itemID)
+			
 		-- Has a parent NPC, so skinning, engineering, etc
 		elseif( self.activeSpell.object.parentNPC ) then
 			npcData = self:GetCreatureDB("target")
-			
 			npcData[self.activeSpell.object.lootType] = npcData[self.activeSpell.object.lootType] or {}
 			npcData = npcData[self.activeSpell.object.lootType]
 		end
@@ -794,27 +793,26 @@ function Sigrie:RecordQuestPOI(questID)
 	if( lastRecordedPOI[questID] and lastRecordedPOI[questID] == poiID ) then return end
 	lastRecordedPOI[questID] = poiID
 	
-	self.db.quests[questID] = self.db.quests[questID] or {}
-	self.db.quests[questID].poi = self.db.quests[questID].poi or {}
+	local questData = self:GetBasicData("quests", questID)
+	questData.poi = questData.poi or  {}
 
-	local questPOI = self.db.quests[questID].poi
 	local currentZone = GetMapInfo()
-	local posX, posY = string.format("%.2f", posX * 100), string.format("%.2f", posY * 100)
+	local posX, posY = tonumber(string.format("%.2f", posX * 100)), tonumber(string.format("%.2f", posY * 100))
 
 	-- POIs don't change, if we find one with all the same data then we can just exit
 	-- You can't simply index the table by objective ID and go by that because some quests can have different coords with the same objective
-	for i=1, #(questPOI), 5 do
-		local dataX, dataY, dataObjectiveID, dataLevel, dataZone = questPOI[i], questPOI[i + 1], questPOI[i + 2], questPOI[i + 3], questPOI[i + 4]
+	for i=1, #(questData.poi), 5 do
+		local dataX, dataY, dataObjectiveID, dataLevel, dataZone = questData.poi[i], questData.poi[i + 1], questData.poi[i + 2], questData.poi[i + 3], questData.poi[i + 4]
 		if( dataZone == currentZone and dataLevel == currentLevel and dataObjectiveID == objectiveID and dataX == posX and dataY == posY ) then
 			return
 		end
 	end
 	
-	table.insert(questPOI, posX)
-	table.insert(questPOI, posY)
-	table.insert(questPOI, objectiveID)
-	table.insert(questPOI, currentLevel)
-	table.insert(questPOI, currentZone)
+	table.insert(questData.poi, posX)
+	table.insert(questData.poi, posY)
+	table.insert(questData.poi, objectiveID)
+	table.insert(questData.poi, currentLevel)
+	table.insert(questData.poi, currentZone)
 
 	debug(3, "Recording quest poi %s location at %.2f, %.2f, obj %d, in %s (%d level)", questID, posX, posY, objectiveID, currentZone, currentLevel)
 end
@@ -859,8 +857,8 @@ function Sigrie:QUEST_LOG_UPDATE(event)
 	if( questGiverID ) then
 		for questID in pairs(tempQuestLog) do
 			if( not questLog[questID] ) then
-				self.db.quests[questID] = self.db.quests[questID] or {}
-				self.db.quests[questID].startsID = questGiverID * (questGiverType == "npc" and 1 or -1)
+				local questData = self:GetBasicData("quests", questID)
+				questData.startsID = questGiverID * (questGiverType == "npc" and 1 or -1)
 				
 				debug(1, "Quest #%d starts at %s #%d.", questID, questGiverType or "nil", questGiverID or -1)
 				self:RecordQuestPOI(questID)
@@ -881,9 +879,9 @@ function Sigrie:QUEST_LOG_UPDATE(event)
 			elseif( not abandonedName and questGiverID ) then
 				questLog[questID] = nil
 				lastRecordedPOI[questID] = nil
-
-				self.db.quests[questID] = self.db.quests[questID] or {}
-				self.db.quests[questID].endsID = questGiverID * (questGiverType == "npc" and 1 or -1)
+				
+				local questData = self:GetBasicData("quests", questID)
+				questData.endsID = questGiverID * (questGiverType == "npc" and 1 or -1)
 				
 				debug(1, "Quest #%d ends at %s #%d.", questID, questGiverType or "nil", questGiverID or -1)	
 			end
@@ -988,7 +986,7 @@ function Sigrie:BATTLEFIELDS_SHOW()
 	local type = BATTLEFIELD_TYPES[BATTLEFIELD_MAP[GetBattlefieldInfo()] or ""]
 	if( type ) then
 		local npcData = self:RecordCreatureData("battlemaster", "target")
-		npcData.battlefields = npcData.battlefields and bit.bor(npcData.battlefields, type) or type
+		npcData.info.battlefields = type
 	end
 end
 
@@ -1009,10 +1007,99 @@ function Sigrie:GOSSIP_SHOW()
 	if( GetNumGossipAvailableQuests() > 0 or GetNumGossipActiveQuests() > 0 or GetNumGossipOptions() >= 2 ) then 
 		checkGossip(GetGossipOptions())
 	elseif( GetNumGossipAvailableQuests() == 0 and GetNumGossipActiveQuests() == 0 and GetNumGossipOptions() == 0 ) then
-	
+		self:RecordCreatureData(nil, "npc")
 	end
 end
 
+-- Cache difficulty so we can't always rechecking it
+function Sigrie:UpdateDifficulty()
+	local difficulty = GetInstanceDifficulty()
+	local inInstance, instanceType = IsInInstance()
+	ZONE_DIFFICULTY = instanceType == "raid" and (difficulty + 100) or inInstance and difficulty or 0	
+	debug(1, "Set zone difficulty to %d, %d, %s, %s", ZONE_DIFFICULTY, difficulty, instanceType, tostring(inInstance))
+end
+
+Sigrie.UPDATE_INSTANCE_INFO = Sigrie.UpdateDifficulty
+Sigrie.PLAYER_DIFFICULTY_CHANGED = Sigrie.UpdateDifficulty
+Sigrie.PLAYER_ENTERING_WORLD = Sigrie.UpdateDifficulty
+Sigrie.ZONE_CHANGED_NEW_AREA = Sigrie.UpdateDifficulty
+
+-- Table writing
+-- Encodes text in a way that it won't interfere with the table being loaded
+local map = {	["{"] = "\\" .. string.byte("{"), ["}"] = "\\" .. string.byte("}"),
+				['"'] = "\\" .. string.byte('"'), [";"] = "\\" .. string.byte(";"),
+				["%["] = "\\" .. string.byte("["), ["%]"] = "\\" .. string.byte("]"),
+				["@"] = "\\" .. string.byte("@")}
+local function encode(text)
+	if( not text ) then return nil end
+	
+	for find, replace in pairs(map) do
+		text = string.gsub(text, find, replace)
+	end
+	
+	return text
+end
+
+local function writeTable(tbl)
+	local data = ""
+	for key, value in pairs(tbl) do
+		if( key ~= "START_SERIALIZER" ) then
+			local valueType = type(value)
+
+			-- Wrap the key in brackets if it's a number
+			if( type(key) == "number" ) then
+				key = string.format("[%s]", key)
+				-- This will match any punctuation, spacing or control characters, basically anything that requires wrapping around them
+			elseif( string.match(key, "[%p%s%c]") ) then
+				key = string.format("[\"%s\"]", key)
+			end
+
+			-- foo = {bar = 5}
+			if( valueType == "table" ) then
+				data = string.format("%s%s=%s;", data, key, writeTable(value))
+				-- foo = true / foo = 5
+			elseif( valueType == "number" or valueType == "boolean" ) then
+				data = string.format("%s%s=%s;", data, key, tostring(value))
+				-- foo = "bar"
+			else
+				data = string.format("%s%s=\"%s\";", data, key, tostring(encode(value)))
+			end
+		end
+	end
+
+	return "{" .. data .. "}"
+end
+
+local function serializeDatabase(tbl, db)
+	for key, value in pairs(tbl) do
+		if( type(value) == "table" ) then
+			-- Find the serializer marker, so we know to just turn it into a string and don't go in farther
+			if( value.START_SERIALIZER ) then
+				db[key] = writeTable(value)
+			-- Still no serialize marker, so just keep building the structure
+			else
+				db[key] = db[key] or {}
+				serializeDatabase(value, db[key])
+			end   
+		end
+	end
+end
+
+-- Because serializing happens during logout, will save the error so users can report them still, without having BugGrabber
+local function serializeError(msg)
+	if( not SigrieDB.error ) then
+		SigrieDB.error = {msg = msg, trace = debugstack(2)}
+	end
+end
+
+function Sigrie:PLAYER_LOGOUT()
+	local errorHandler = geterrorhandler()
+	seterrorhandler(serializeError)
+	serializeDatabase(self.db, SigrieDB)
+	seterrorhandler(errorHandler)
+end
+
+-- General stuff
 function Sigrie:RegisterEvent(event) self.frame:RegisterEvent(event) end
 function Sigrie:UnregisterEvent(event) self.frame:UnregisterEvent(event) end
 Sigrie.frame = CreateFrame("Frame")
