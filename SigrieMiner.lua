@@ -975,7 +975,7 @@ function Sigrie:GUILDBANKFRAME_OPENED()
 end
 
 function Sigrie:PLAYER_TARGET_CHANGED()
-	if( not InCombatLockdown() and UnitExists("target") and not UnitPlayerControlled("target") and not UnitAffectingCombat("target") and CheckInteractDistance("target", 3) ) then
+	if( UnitExists("target") and not UnitPlayerControlled("target") and not UnitAffectingCombat("target") and CheckInteractDistance("target", 3) ) then
 		self:RecordCreatureData("generic", "target")
 	end
 end
