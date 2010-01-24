@@ -83,6 +83,7 @@ function Sigrie:ADDON_LOADED(event, addon)
 	self:RegisterEvent("TRAINER_SHOW")
 	self:RegisterEvent("PLAYER_LEAVING_WORLD")
 	self:RegisterEvent("LOOT_OPENED")
+	self:RegisterEvent("LOOT_CLOSED")
 	self:RegisterEvent("QUEST_LOG_UPDATE")
 	self:RegisterEvent("QUEST_COMPLETE")
 	self:RegisterEvent("QUEST_DETAIL")
@@ -666,11 +667,15 @@ local COPPER_AMOUNT = string.gsub(COPPER_AMOUNT, "%%d", "(%%d+)")
 local SILVER_AMOUNT = string.gsub(SILVER_AMOUNT, "%%d", "(%%d+)")
 local GOLD_AMOUNT = string.gsub(GOLD_AMOUNT, "%%d", "(%%d+)")
 
+function Sigrie:LOOT_CLOSED()
+	self.activeSpell.object = nil
+end
+
 function Sigrie:LOOT_OPENED()
 	local npcData
 	local time = GetTime()
 	-- Object set, so looks like we're good
-	if( self.activeSpell.object and self.activeSpell.endTime <= (time + 0.60) ) then
+	if( self.activeSpell.object and self.activeSpell.endTime <= (time + 0.50) ) then
 		-- We want to save it by the zone, this is really just for Fishing.
 		if( self.activeSpell.object.lootByZone ) then
 			npcData = self:RecordZoneLocation(self.activeSpell.object.lootType)
