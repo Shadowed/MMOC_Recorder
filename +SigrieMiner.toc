@@ -1,9 +1,0 @@
-## Interface: 30300
-## Title: Sigrie Miner
-## Notes: Data recorder for http://db.mmo-champion.com
-## Author: Shadowed
-## SavedVariablesPerCharacter: SigrieDB
-
-localization.enUS.lua
-
-SigrieMiner.lua

@@ -1,0 +1,9 @@
+## Interface: 30300
+## Title: MMO-Champion Recorder
+## Notes: In-game data recorder for http://db.mmo-champion.com
+## Author: Shadowed
+## SavedVariablesPerCharacter: MMOCRecorderDB
+
+localization.enUS.lua
+
+MMOC_Recorder.lua

@@ -1,6 +1,6 @@
-Sigrie = select(2, ...)
+local Recorder = select(2, ...)
 
-local L = Sigrie.L
+local L = Recorder.L
 local CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo = CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo
 local GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText = GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText
 
@@ -23,52 +23,52 @@ local function debug(level, msg, ...)
 	end
 end
 
-function Sigrie:InitializeDB()
+function Recorder:InitializeDB()
 	local version, build = GetBuildInfo()
 	build = tonumber(build) or -1
 	
 	-- Invalidate he database if the player guid changed or the build changed
-	if( SigrieDB and ( not SigrieDB.version or not SigrieDB.build or SigrieDB.build < build ) ) then
-		SigrieDB = nil
-		debug(1, "Reset DB, %s, %s, %s.", tostring(SigrieDB.version), tostring(SigrieDB.build), tostring(build))
+	if( MMOCRecorderDB and ( not MMOCRecorderDB.version or not MMOCRecorderDB.build or MMOCRecorderDB.build < build ) ) then
+		MMOCRecorderDB = nil
+		debug(1, "Reset DB, %s, %s, %s.", tostring(MMOCRecorderDB.version), tostring(MMOCRecorderDB.build), tostring(build))
 	end
 	
 	-- Initialize the database
-	SigrieDB = SigrieDB or {}
-	SigrieDB.class = select(2, UnitClass("player"))
-	SigrieDB.race = string.upper(select(2, UnitRace("player")))
-	SigrieDB.guid = SigrieDB.guid or UnitGUID("player")
-	SigrieDB.version = version
-	SigrieDB.build = build
-	SigrieDB.locale = GetLocale()
+	MMOCRecorderDB = MMOCRecorderDB or {}
+	MMOCRecorderDB.class = select(2, UnitClass("player"))
+	MMOCRecorderDB.race = string.upper(select(2, UnitRace("player")))
+	MMOCRecorderDB.guid = MMOCRecorderDB.guid or UnitGUID("player")
+	MMOCRecorderDB.version = version
+	MMOCRecorderDB.build = build
+	MMOCRecorderDB.locale = GetLocale()
 	
 	self.db = {}
 end
 
 -- GUID changes infrequently enough, I'm not too worried about this
-function Sigrie:PLAYER_LOGIN()
+function Recorder:PLAYER_LOGIN()
 	local guid = UnitGUID("player")
-	if( SigrieDB.guid and SigrieDB.guid ~= guid ) then
-		SigrieDB = nil
+	if( MMOCRecorderDB.guid and MMOCRecorderDB.guid ~= guid ) then
+		MMOCRecorderDB = nil
 		self:InitializeDB()
 		debug(1, "Reset DB, GUID changed.")
 	end
-	SigrieDB.guid = guid
+	MMOCRecorderDB.guid = guid
 end
 
-function Sigrie:ADDON_LOADED(event, addon)
-	if( addon ~= "+SigrieMiner" ) then return end
+function Recorder:ADDON_LOADED(event, addon)
+	if( addon ~= "+MMOC_Recorder" ) then return end
 	self:UnregisterEvent("ADDON_LOADED")
 	
 	self:InitializeDB()
-	if( SigrieDB.error ) then
-		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Message: %s"], SigrieDB.error.msg))
-		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Trace: %s"], SigrieDB.error.trace))
-		self:Print(L["An error happened while Sigrie was serializing your data, please report the above error. You might have to scroll up to see it all."])
-		SigrieDB.error = nil
+	if( MMOCRecorderDB.error ) then
+		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Message: %s"], MMOCRecorderDB.error.msg))
+		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Trace: %s"], MMOCRecorderDB.error.trace))
+		self:Print(L["An error happened while Recorder was serializing your data, please report the above error. You might have to scroll up to see it all."])
+		MMOCRecorderDB.error = nil
 	end
 	
-	self.tooltip = CreateFrame("GameTooltip", "SigrieTooltip", UIParent, "GameTooltipTemplate")
+	self.tooltip = CreateFrame("GameTooltip", "RecorderTooltip", UIParent, "GameTooltipTemplate")
 	self.tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	self.tooltip:Hide()
 	
@@ -116,13 +116,13 @@ end
 -- For pulling data out of the actual database. This isn't the most efficient system compared to a transparent metatable
 -- like I normally use, but because of how the table is structured it's a lot easier to cache "minor" bits of data instead of the ENTIRE table and unserialize it as we need it, also simplifies serializing it again
 -- The downside is, it creates duplicate parent and child tables, but it saves a lot more on not loading the excess data
-function Sigrie:GetBasicData(parent, key)
+function Recorder:GetBasicData(parent, key)
 	self.db[parent] = self.db[parent] or {}
 	if( self.db[parent][key] ) then return self.db[parent][key] end
 	
 	-- Load it out of the database, we've already got it
-	if( SigrieDB[parent] and SigrieDB[parent][key] ) then
-		local func, msg = loadstring("return " .. SigrieDB[parent][key])
+	if( MMOCRecorderDB[parent] and MMOCRecorderDB[parent][key] ) then
+		local func, msg = loadstring("return " .. MMOCRecorderDB[parent][key])
 		if( func ) then
 			self.db[parent][key] = func()
 		else
@@ -137,14 +137,14 @@ function Sigrie:GetBasicData(parent, key)
 	return self.db[parent][key]
 end
 
-function Sigrie:GetData(parent, child, key)
+function Recorder:GetData(parent, child, key)
 	self.db[parent] = self.db[parent] or {}
 	self.db[parent][child] = self.db[parent][child] or {}
 	if( self.db[parent][child][key] ) then return self.db[parent][child][key] end
 	
 	-- Load it out of the database, we've already got it
-	if( SigrieDB[parent] and SigrieDB[parent][child] and SigrieDB[parent][child][key] ) then
-		local func, msg = loadstring("return " .. SigrieDB[parent][child][key])
+	if( MMOCRecorderDB[parent] and MMOCRecorderDB[parent][child] and MMOCRecorderDB[parent][child][key] ) then
+		local func, msg = loadstring("return " .. MMOCRecorderDB[parent][child][key])
 		if( func ) then
 			self.db[parent][child][key] = func()
 		else
@@ -185,7 +185,7 @@ local npcTypeMetatable = {
 	end,
 }
 
-function Sigrie:PLAYER_LEAVING_WORLD()
+function Recorder:PLAYER_LEAVING_WORLD()
 	self.NPC_ID = setmetatable({}, npcIDMetatable)
 	self.NPC_TYPE = setmetatable({}, npcTypeMetatable)
 end
@@ -198,7 +198,7 @@ end
 
 -- Drunk identification, so we can discard tracking levels until no longer drunk
 local DRUNK_ITEM1, DRUNK_ITEM2, DRUNK_ITEM3, DRUNK_ITEM4 = string.gsub(DRUNK_MESSAGE_ITEM_SELF1, "%%s", ".+"), string.gsub(DRUNK_MESSAGE_ITEM_SELF2, "%%s", ".+"), string.gsub(DRUNK_MESSAGE_ITEM_SELF3, "%%s", ".+"), string.gsub(DRUNK_MESSAGE_ITEM_SELF4, "%%s", ".+")
-function Sigrie:CHAT_MSG_SYSTEM(event, message)
+function Recorder:CHAT_MSG_SYSTEM(event, message)
 	if( message == DRUNK_MESSAGE_SELF1 ) then
 		self.playerIsDrunk = nil
 	elseif( not self.playerIsDrunk and ( message == DRUNK_MESSAGE_SELF2 or message == DRUNK_MESSAGE_SELF4 or message == DRUNK_MESSAGE_SELF3 ) ) then
@@ -213,10 +213,10 @@ local ITEM_REQ_ARENA_RATING = "^" .. parseText(ITEM_REQ_ARENA_RATING)
 local ITEM_REQ_ARENA_RATING_3V3 = "^" .. parseText(ITEM_REQ_ARENA_RATING_3V3)
 local ITEM_REQ_ARENA_RATING_5V5 = "^" .. parseText(ITEM_REQ_ARENA_RATING_5V5)
 
-function Sigrie:GetArenaData(index)
+function Recorder:GetArenaData(index)
 	self.tooltip:SetMerchantItem(index)
 	for i=1, self.tooltip:NumLines() do
-		local text = _G["SigrieTooltipTextLeft" .. i]:GetText()
+		local text = _G["RecorderTooltipTextLeft" .. i]:GetText()
 		
 		local rating = string.match(text, ITEM_REQ_ARENA_RATING_5V5)
 		if( rating ) then
@@ -238,7 +238,7 @@ function Sigrie:GetArenaData(index)
 end
 
 -- Faction discounts
-function Sigrie:UpdateFactions()
+function Recorder:UpdateFactions()
 	-- If you use GetNumFactions, you will miss those that are collapsed
 	local i = 1
 	while( true ) do
@@ -252,14 +252,14 @@ function Sigrie:UpdateFactions()
 	end
 end
 
-function Sigrie:GetFaction(guid)
+function Recorder:GetFaction(guid)
 	if( not guid ) then return 1 end
 	self:UpdateFactions()
 	
 	local faction
 	self.tooltip:SetHyperlink(string.format("unit:%s", guid))
 	for i=1, self.tooltip:NumLines() do
-		local text = _G["SigrieTooltipTextLeft" .. i]:GetText()
+		local text = _G["RecorderTooltipTextLeft" .. i]:GetText()
 		if( text and self.factions[text] ) then
 			return text
 		end
@@ -268,7 +268,7 @@ function Sigrie:GetFaction(guid)
 	return nil
 end
 
-function Sigrie:GetFactionDiscount(guid)
+function Recorder:GetFactionDiscount(guid)
 	local faction = self:GetFaction(guid)
 	if( not faction ) then return 1 end
 	return self.factions[faction] == 5 and 0.95 or self.factions[faction] == 6 and 0.90 or self.factions[faction] == 7 and 0.85 or self.factions[faction] == 8 and 0.80 or 1
@@ -277,7 +277,7 @@ end
 -- Reputation and spell handling
 local COMBATLOG_OBJECT_REACTION_HOSTILE = COMBATLOG_OBJECT_REACTION_HOSTILE
 local eventsRegistered = {["PARTY_KILL"] = true, ["SPELL_CAST_SUCCESS"] = true, ["SPELL_CAST_START"] = true}
-function Sigrie:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, ...)
+function Recorder:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, ...)
 	if( not eventsRegistered[eventType] ) then return end
 	
 	if( ( eventType == "SPELL_CAST_START" or eventType == "SPELL_CAST_SUCCESS" ) and bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
@@ -303,8 +303,8 @@ local reputationModifiers = {
 	[GetSpellInfo(61849)] = true, -- The Spirit of Sharing
 }
 	
-function Sigrie:HasReputationModifier()
-	if( SigrieDB.race == "HUMAN" ) then return true end
+function Recorder:HasReputationModifier()
+	if( MMOCRecorderDB.race == "HUMAN" ) then return true end
 	
 	for name in pairs(reputationModifiers) do
 		if( UnitBuff("player", name) ) then
@@ -315,7 +315,7 @@ function Sigrie:HasReputationModifier()
 	return false
 end
 
-function Sigrie:COMBAT_TEXT_UPDATE(event, type, faction, amount)
+function Recorder:COMBAT_TEXT_UPDATE(event, type, faction, amount)
 	if( type ~= "FACTION" ) then return end
 	
 	if( repGain.timeout and repGain.timeout >= GetTime() and not self:HasReputationModifier() ) then
@@ -330,7 +330,7 @@ function Sigrie:COMBAT_TEXT_UPDATE(event, type, faction, amount)
 end
 
 -- Handle any incompatabilies that other mods can cause
-function Sigrie:StripData(text)
+function Recorder:StripData(text)
 	-- Strip [<level crap>] <quest title>
 	text = string.gsub(text, "%[(.+)%]", "")
 	-- Strip color codes
@@ -351,7 +351,7 @@ hooksecurefunc("SetAbandonQuest", function()
 	setToAbandon = GetAbandonQuestName()
 end)
 
-Sigrie.InteractSpells = {
+Recorder.InteractSpells = {
 	-- Opening
 	[GetSpellInfo(3365) or ""] = {item = true, location = true},
 	-- Herb Gathering
@@ -377,7 +377,7 @@ Sigrie.InteractSpells = {
 }
 
 -- Might have to use DungeonUsesTerrainMap, Blizzard seems to use it for subtracting from dungeon level?
-function Sigrie:RecordLocation()
+function Recorder:RecordLocation()
 	local currentCont = GetCurrentMapContinent()
 	local currentZone = GetCurrentMapZone()
 	local currentLevel = GetCurrentMapDungeonLevel()
@@ -405,7 +405,7 @@ function Sigrie:RecordLocation()
 end
 
 -- For recording a location by zone, primarily for fishing
-function Sigrie:RecordZoneLocation(type)
+function Recorder:RecordZoneLocation(type)
 	local x, y, zone, level = self:RecordLocation()
 	local zoneData = self:GetData("zone", ZONE_DIFFICULTY, zone)
 	
@@ -435,7 +435,7 @@ function Sigrie:RecordZoneLocation(type)
 end
 
 -- Location, location, location
-function Sigrie:RecordDataLocation(type, npcID, isGeneric)
+function Recorder:RecordDataLocation(type, npcID, isGeneric)
 	local npcData = self:GetData(type, ZONE_DIFFICULTY, npcID)
 	local x, y, zone, level = self:RecordLocation()
 	local coordModifier = isGeneric and 200 or 0
@@ -478,7 +478,7 @@ function Sigrie:RecordDataLocation(type, npcID, isGeneric)
 end
 
 -- Add all of the data like title, health, power, faction, etc here
-function Sigrie:GetCreatureDB(unit)
+function Recorder:GetCreatureDB(unit)
 	local guid = UnitGUID(unit)
 	local npcID, npcType = self.NPC_ID[guid], self.NPC_TYPE[guid]
 	if( not npcID or not npcType ) then return end
@@ -486,12 +486,12 @@ function Sigrie:GetCreatureDB(unit)
 	return self:GetData("npcs", ZONE_DIFFICULTY, npcID), npcID, npcType
 end
 
-function Sigrie:RecordCreatureType(npcData, type)
+function Recorder:RecordCreatureType(npcData, type)
 	npcData.info.bitType = npcData.info.bitType and bit.bor(npcData.info.bitType, NPC_TYPES[type]) or NPC_TYPES[type]
 	debug(3, "Recording npc %s, type %s", npcData.info and npcData.info.name or "nil", type)
 end
 
-function Sigrie:RecordCreatureData(type, unit)
+function Recorder:RecordCreatureData(type, unit)
 	local npcData, npcID, npcType = self:GetCreatureDB(unit)
 	if( not npcData ) then return end
 
@@ -523,7 +523,7 @@ end
 
 -- Record trainer data
 local playerCache
-function Sigrie:UpdateTrainerData(npcData)
+function Recorder:UpdateTrainerData(npcData)
 	-- No sense in recording training data unless the data was reset. It's not going to change
 	if( npcData.taeches ) then return end
 	
@@ -614,7 +614,7 @@ end
 -- Record merchant items
 -- This should be changed to use some sort of ID, such as price .. cost to identify items
 -- that way if an item is limited it won't be wiped when they review it after it's been bought out
-function Sigrie:UpdateMerchantData(npcData)
+function Recorder:UpdateMerchantData(npcData)
 	if( CanMerchantRepair() ) then
 		self:RecordCreatureType(npcData, "canrepair")
 	end
@@ -654,8 +654,8 @@ function Sigrie:UpdateMerchantData(npcData)
 end
 
 -- LOOT TRACKING AND ALL HIS PALS
-function Sigrie:CHAT_MSG_ADDON(prefix, message, channel, sender)
-	if( sender == playerName or prefix ~= "SIGRIE" or ( channel ~= "RAID" and channel ~= "PARTY" ) ) then return end
+function Recorder:CHAT_MSG_ADDON(prefix, message, channel, sender)
+	if( sender == playerName or prefix ~= "Recorder" or ( channel ~= "RAID" and channel ~= "PARTY" ) ) then return end
 	
 	local type, arg = string.split(":", message, 2)
 	if( type == "loot" ) then
@@ -667,11 +667,11 @@ local COPPER_AMOUNT = string.gsub(COPPER_AMOUNT, "%%d", "(%%d+)")
 local SILVER_AMOUNT = string.gsub(SILVER_AMOUNT, "%%d", "(%%d+)")
 local GOLD_AMOUNT = string.gsub(GOLD_AMOUNT, "%%d", "(%%d+)")
 
-function Sigrie:LOOT_CLOSED()
+function Recorder:LOOT_CLOSED()
 	self.activeSpell.object = nil
 end
 
-function Sigrie:LOOT_OPENED()
+function Recorder:LOOT_OPENED()
 	local npcData
 	local time = GetTime()
 	-- Object set, so looks like we're good
@@ -711,7 +711,7 @@ function Sigrie:LOOT_OPENED()
 			-- This is necessary because sending it just to raid or party without checking can cause not in raid errors
 			local instanceType = select(2, IsInInstance())
 			if( instanceType ~= "arena" and instanceType ~= "pvp" and ( GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0 ) ) then
-				SendAddonMessage("SIGRIE", string.format("loot:%s", guid), "RAID")
+				SendAddonMessage("Recorder", string.format("loot:%s", guid), "RAID")
 			end
 		end
 	end
@@ -757,13 +757,13 @@ end
 
 -- Ensure that we still get item data even if the person is using a /use macro
 hooksecurefunc("SecureCmdUseItem", function(name, bag, slot, target)
-	if( not target and Sigrie.activeSpell.object and Sigrie.activeSpell.object.parentItem and not Sigrie.activeSpell.useSet ) then
-		Sigrie.activeSpell.item = select(2, GetItemInfo(name))
-		Sigrie.activeSpell.useSet = true
+	if( not target and Recorder.activeSpell.object and Recorder.activeSpell.object.parentItem and not Recorder.activeSpell.useSet ) then
+		Recorder.activeSpell.item = select(2, GetItemInfo(name))
+		Recorder.activeSpell.useSet = true
 	end
 end)
 
-function Sigrie:UNIT_SPELLCAST_SENT(event, unit, name, rank, target)
+function Recorder:UNIT_SPELLCAST_SENT(event, unit, name, rank, target)
 	if( unit ~= "player" or not self.InteractSpells[name] ) then return end
 
 	local itemName, link = GameTooltip:GetItem()
@@ -777,7 +777,7 @@ function Sigrie:UNIT_SPELLCAST_SENT(event, unit, name, rank, target)
 	self.activeSpell.object = self.InteractSpells[name]
 end
 
-function Sigrie:UNIT_SPELLCAST_SUCCEEDED(event, unit, name, rank)
+function Recorder:UNIT_SPELLCAST_SUCCEEDED(event, unit, name, rank)
 	if( unit ~= "player" ) then return end
 	
 	if( self.activeSpell.endTime == -1 and self.activeSpell.name == self.activeSpell.name and self.activeSpell.rank == rank ) then
@@ -785,22 +785,22 @@ function Sigrie:UNIT_SPELLCAST_SUCCEEDED(event, unit, name, rank)
 	end
 end
 
-function Sigrie:UNIT_SPELLCAST_FAILED(event, unit)
+function Recorder:UNIT_SPELLCAST_FAILED(event, unit)
 	if( unit ~= "player" ) then return end
 	
 	self.activeSpell.object = nil
 end
 
 -- QUEST DATA HANDLER
-function Sigrie:GetQuestName(questID)
+function Recorder:GetQuestName(questID)
 	self.tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	self.tooltip:SetHyperlink(string.format("quest:%d", questID))
 	
-	return SigrieTooltipTextLeft1:GetText()
+	return RecorderTooltipTextLeft1:GetText()
 end
 
 local lastRecordedPOI = {}
-function Sigrie:RecordQuestPOI(questID)
+function Recorder:RecordQuestPOI(questID)
 	local posX, posY, objectiveID = select(2, QuestPOIGetIconInfo(questID))
 	if( not posX or not posY or GetCurrentMapZone() == 0 ) then return end
 
@@ -834,7 +834,7 @@ function Sigrie:RecordQuestPOI(questID)
 	debug(3, "Recording quest poi %s location at %.2f, %.2f, obj %d, in %s (%d level)", questID, posX, posY, objectiveID, currentZone, currentLevel)
 end
 
-function Sigrie:WORLD_MAP_UPDATE()
+function Recorder:WORLD_MAP_UPDATE()
 	for i=1, QuestMapUpdateAllQuests() do
 		local questID, logIndex = QuestPOIGetQuestIDByVisibleIndex(i)
 		if( questID and logIndex and logIndex > 0 ) then
@@ -846,7 +846,7 @@ end
 -- Quest log updated, see what changed quest-wise
 local questGiverType, questGiverID
 local tempQuestLog, questLog = {}
-function Sigrie:QUEST_LOG_UPDATE(event)
+function Recorder:QUEST_LOG_UPDATE(event)
 	-- Scan quest log
 	local foundQuests, index = 0, 1
 	local numQuests = select(2, GetNumQuestLogEntries())
@@ -909,7 +909,7 @@ function Sigrie:QUEST_LOG_UPDATE(event)
 	table.wipe(tempQuestLog)
 end
 
-function Sigrie:QuestProgress()
+function Recorder:QuestProgress()
 	local guid = UnitGUID("npc")
 	local questGiven = self:StripData(GetTitleText())
 	local id, type = self.NPC_ID[guid], self.NPC_TYPE[guid]
@@ -921,12 +921,12 @@ function Sigrie:QuestProgress()
 	end
 end
 
-function Sigrie:QUEST_COMPLETE(event)
+function Recorder:QUEST_COMPLETE(event)
 	self:QuestProgress()
 end
 
 -- We're looking at the details of the quest, save the quest info so we can use it later
-function Sigrie:QUEST_DETAIL(event)
+function Recorder:QUEST_DETAIL(event)
 	-- When a quest is shared with the player, "npc" is actually the "player" unitid
 	if( UnitIsPlayer("npc") ) then
 		questGiverType, questGiverID = nil, nil
@@ -937,34 +937,34 @@ function Sigrie:QUEST_DETAIL(event)
 end
 
 -- General handling
-function Sigrie:AUCTION_HOUSE_SHOW()
+function Recorder:AUCTION_HOUSE_SHOW()
 	self:RecordCreatureData("auctioneer", "npc")
 end
 
-function Sigrie:MAIL_SHOW()
+function Recorder:MAIL_SHOW()
 	self:RecordCreatureData("mailbox", "npc")
 end
 
 local merchantData
-function Sigrie:MERCHANT_SHOW()
+function Recorder:MERCHANT_SHOW()
 	merchantData = self:RecordCreatureData("vendor", "npc")
 	self:UpdateMerchantData(merchantData)
 end
 
-function Sigrie:MERCHANT_UPDATE()
+function Recorder:MERCHANT_UPDATE()
 	self:UpdateMerchantData(merchantData)
 end
 
-function Sigrie:TRAINER_SHOW()
+function Recorder:TRAINER_SHOW()
 	local npcData = self:RecordCreatureData("trainer", "npc")
 	self:UpdateTrainerData(npcData)
 end
 
-function Sigrie:PET_STABLE_SHOW()
+function Recorder:PET_STABLE_SHOW()
 	self:RecordCreatureData("stable", "npc")
 end
 
-function Sigrie:TAXIMAP_OPENED()
+function Recorder:TAXIMAP_OPENED()
 	local npcData = self:RecordCreatureData("flightmaster", "npc")
 	for i=1, NumTaxiNodes() do
 		if( TaxiNodeGetType(i) == "CURRENT" ) then
@@ -975,29 +975,29 @@ function Sigrie:TAXIMAP_OPENED()
 	end
 end
 
-function Sigrie:BANKFRAME_OPENED()
+function Recorder:BANKFRAME_OPENED()
 	self:RecordCreatureData("banker", "npc")
 end
 
-function Sigrie:CONFIRM_XP_LOSS()
+function Recorder:CONFIRM_XP_LOSS()
 	self:RecordCreatureData("spiritres", "npc")
 end
 
-function Sigrie:CONFIRM_BINDER()
+function Recorder:CONFIRM_BINDER()
 	self:RecordCreatureData("binder", "npc")
 end
 
-function Sigrie:GUILDBANKFRAME_OPENED()
+function Recorder:GUILDBANKFRAME_OPENED()
 	self:RecordCreatureData("guildbank", "npc")
 end
 
-function Sigrie:PLAYER_TARGET_CHANGED()
+function Recorder:PLAYER_TARGET_CHANGED()
 	if( UnitExists("target") and not UnitPlayerControlled("target") and not UnitAffectingCombat("target") and CheckInteractDistance("target", 3) ) then
 		self:RecordCreatureData("generic", "target")
 	end
 end
 
-function Sigrie:BATTLEFIELDS_SHOW()
+function Recorder:BATTLEFIELDS_SHOW()
 	if( not UnitExists("npc") ) then return end
 
 	local type = BATTLEFIELD_TYPES[BATTLEFIELD_MAP[GetBattlefieldInfo()] or ""]
@@ -1010,17 +1010,17 @@ end
 -- Gossip returns most of the types: banker, battlemaster, binder, gossip, tabard, taxi, trainer, vendor
 -- It's a way of identifying what a NPC does without the player checking out every single option
 local function checkGossip(...)
-	local npcData = Sigrie:RecordCreatureData(nil, "npc")
+	local npcData = Recorder:RecordCreatureData(nil, "npc")
 	
 	for i=1, select("#", ...), 2 do
 		local text, type = select(i, ...)
 		if( NPC_TYPES[type] ) then
-			Sigrie:RecordCreatureType(npcData, type)
+			Recorder:RecordCreatureType(npcData, type)
 		end
 	end
 end
 
-function Sigrie:GOSSIP_SHOW()
+function Recorder:GOSSIP_SHOW()
 	if( GetNumGossipAvailableQuests() > 0 or GetNumGossipActiveQuests() > 0 or GetNumGossipOptions() >= 2 ) then 
 		checkGossip(GetGossipOptions())
 	elseif( GetNumGossipAvailableQuests() == 0 and GetNumGossipActiveQuests() == 0 and GetNumGossipOptions() == 0 ) then
@@ -1029,17 +1029,17 @@ function Sigrie:GOSSIP_SHOW()
 end
 
 -- Cache difficulty so we can't always rechecking it
-function Sigrie:UpdateDifficulty()
+function Recorder:UpdateDifficulty()
 	local difficulty = GetInstanceDifficulty()
 	local inInstance, instanceType = IsInInstance()
 	ZONE_DIFFICULTY = instanceType == "raid" and (difficulty + 100) or inInstance and difficulty or 0	
 	debug(1, "Set zone difficulty to %d, %d, %s, %s", ZONE_DIFFICULTY, difficulty, instanceType, tostring(inInstance))
 end
 
-Sigrie.UPDATE_INSTANCE_INFO = Sigrie.UpdateDifficulty
-Sigrie.PLAYER_DIFFICULTY_CHANGED = Sigrie.UpdateDifficulty
-Sigrie.PLAYER_ENTERING_WORLD = Sigrie.UpdateDifficulty
-Sigrie.ZONE_CHANGED_NEW_AREA = Sigrie.UpdateDifficulty
+Recorder.UPDATE_INSTANCE_INFO = Recorder.UpdateDifficulty
+Recorder.PLAYER_DIFFICULTY_CHANGED = Recorder.UpdateDifficulty
+Recorder.PLAYER_ENTERING_WORLD = Recorder.UpdateDifficulty
+Recorder.ZONE_CHANGED_NEW_AREA = Recorder.UpdateDifficulty
 
 -- Table writing
 -- Encodes text in a way that it won't interfere with the table being loaded
@@ -1104,47 +1104,46 @@ end
 
 -- Because serializing happens during logout, will save the error so users can report them still, without having BugGrabber
 local function serializeError(msg)
-	if( not SigrieDB.error ) then
-		SigrieDB.error = {msg = msg, trace = debugstack(2)}
+	if( not MMOCRecorderDB.error ) then
+		MMOCRecorderDB.error = {msg = msg, trace = debugstack(2)}
 	end
 end
 
-function Sigrie:PLAYER_LOGOUT()
+function Recorder:PLAYER_LOGOUT()
 	local errorHandler = geterrorhandler()
 	seterrorhandler(serializeError)
-	serializeDatabase(self.db, SigrieDB)
+	serializeDatabase(self.db, MMOCRecorderDB)
 	seterrorhandler(errorHandler)
 end
 
 -- General stuff
-function Sigrie:RegisterEvent(event) self.frame:RegisterEvent(event) end
-function Sigrie:UnregisterEvent(event) self.frame:UnregisterEvent(event) end
-Sigrie.frame = CreateFrame("Frame")
-Sigrie.frame:SetScript("OnEvent", function(self, event, ...) Sigrie[event](Sigrie, event, ...) end)
-Sigrie.frame:RegisterEvent("ADDON_LOADED")
-Sigrie.frame:Hide()
+function Recorder:RegisterEvent(event) self.frame:RegisterEvent(event) end
+function Recorder:UnregisterEvent(event) self.frame:UnregisterEvent(event) end
+Recorder.frame = CreateFrame("Frame")
+Recorder.frame:SetScript("OnEvent", function(self, event, ...) Recorder[event](Recorder, event, ...) end)
+Recorder.frame:RegisterEvent("ADDON_LOADED")
+Recorder.frame:Hide()
 
 
-function Sigrie:Print(msg)
-	DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99Sigrie Miner|r: %s", msg))
+function Recorder:Print(msg)
+	DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff33ff99MMOC Recorder|r: %s", msg))
 end
 
-SLASH_SIGRIE1 = "/sigrie"
-SLASH_SIGRIE2 = "/mmoc"
-SLASH_SIGRIE3 = "/mmochampion"
-SlashCmdList["SIGRIE"] = function(msg)
+SLASH_MMOCRECORDER1 = "/mmoc"
+SLASH_MMOCRECORDER2 = "/mmochampion"
+SlashCmdList["MMOCRECORDER"] = function(msg)
 	msg = string.lower(msg or "")
 	
 	if( msg == "reset" ) then
-		if( not StaticPopupDialogs["SIGRIE_CONFIRM_RESET"] ) then
-			StaticPopupDialogs["SIGRIE_CONFIRM_RESET"] = {
+		if( not StaticPopupDialogs["MMOCRECORD_CONFIRM_RESET"] ) then
+			StaticPopupDialogs["MMOCRECORD_CONFIRM_RESET"] = {
 				text = L["Are you sure you want to reset ALL data recorded?"],
 				button1 = L["Yes"],
 				button2 = L["No"],
 				OnAccept = function()
-					SigrieDB = nil
-					Sigrie:InitializeDB()
-					Sigrie:Print(L["Reset all saved data for this character."])
+					MMOCRecorderDB = nil
+					Recorder:InitializeDB()
+					Recorder:Print(L["Reset all saved data for this character."])
 				end,
 				timeout = 30,
 				whileDead = 1,
@@ -1152,9 +1151,9 @@ SlashCmdList["SIGRIE"] = function(msg)
 			}
 		end
 		
-		StaticPopup_Show("SIGRIE_CONFIRM_RESET")
+		StaticPopup_Show("MMOCRECORD_CONFIRM_RESET")
 	else
-		Sigrie:Print(L["Slash commands"])
-		DEFAULT_CHAT_FRAME:AddMessage(L["/sigrie reset - Resets all saved data for this character"])
+		Recorder:Print(L["Slash commands"])
+		DEFAULT_CHAT_FRAME:AddMessage(L["/mmoc reset - Resets all saved data for this character"])
 	end
 end
