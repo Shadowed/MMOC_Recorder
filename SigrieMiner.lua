@@ -470,7 +470,7 @@ function Sigrie:GetCreatureDB(unit)
 	local npcID, npcType = self.NPC_ID[guid], self.NPC_TYPE[guid]
 	if( not npcID or not npcType ) then return end
 
-	return self:GetData("nps", ZONE_DIFFICULTY, npcID), npcID, npcType
+	return self:GetData("npcs", ZONE_DIFFICULTY, npcID), npcID, npcType
 end
 
 function Sigrie:RecordCreatureType(npcData, type)
