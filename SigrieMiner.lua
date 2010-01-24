@@ -873,7 +873,7 @@ function Sigrie:QUEST_LOG_UPDATE(event)
 	-- Find quests we accepted
 	if( questGiverID ) then
 		for questID in pairs(tempQuestLog) do
-			if( not questLog[questID] ) then
+			if( not questLog[questID] and questGiverType ) then
 				local questData = self:GetBasicData("quests", questID)
 				questData.startsID = questGiverID * (questGiverType == "npc" and 1 or -1)
 				
