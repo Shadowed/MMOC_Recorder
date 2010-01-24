@@ -24,25 +24,36 @@ local function debug(level, msg, ...)
 end
 
 function Sigrie:InitializeDB()
-	local guid = UnitGUID("player")
 	local version, build = GetBuildInfo()
 	build = tonumber(build) or -1
 	
 	-- Invalidate he database if the player guid changed or the build changed
-	if( SigrieDB and ( not SigrieDB.version or not SigrieDB.build or SigrieDB.build < build or SigrieDB.guid ~= guid ) ) then
+	if( SigrieDB and ( not SigrieDB.version or not SigrieDB.build or SigrieDB.build < build ) ) then
 		SigrieDB = nil
+		debug(1, "Reset DB, %s, %s, %s.", tostring(SigrieDB.version), tostring(SigrieDB.build), tostring(build))
 	end
 	
 	-- Initialize the database
 	SigrieDB = SigrieDB or {}
-	SigrieDB.guid = guid
 	SigrieDB.class = select(2, UnitClass("player"))
 	SigrieDB.race = string.upper(select(2, UnitRace("player")))
+	SigrieDB.guid = SigrieDB.guid or UnitGUID("player")
 	SigrieDB.version = version
 	SigrieDB.build = build
 	SigrieDB.locale = GetLocale()
-
+	
 	self.db = {}
+end
+
+-- GUID changes infrequently enough, I'm not too worried about this
+function Sigrie:PLAYER_LOGIN()
+	local guid = UnitGUID("player")
+	if( SigrieDB.guid and SigrieDB.guid ~= guid ) then
+		SigrieDB = nil
+		self:InitializeDB()
+		debug(1, "Reset DB, GUID changed.")
+	end
+	SigrieDB.guid = guid
 end
 
 function Sigrie:ADDON_LOADED(event, addon)
@@ -96,7 +107,8 @@ function Sigrie:ADDON_LOADED(event, addon)
 	self:RegisterEvent("UPDATE_INSTANCE_INFO")
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 	self:RegisterEvent("ZONE_CHANGED_NEW_AREA")	
-		
+	self:RegisterEvent("PLAYER_LOGIN")
+	
 	self:PLAYER_LEAVING_WORLD()
 end
 
