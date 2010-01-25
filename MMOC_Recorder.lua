@@ -1,6 +1,7 @@
 local Recorder = select(2, ...)
 
 local L = Recorder.L
+local MMOCRecorderDB
 local CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo = CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo
 local GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText = GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText
 
@@ -59,6 +60,7 @@ end
 function Recorder:ADDON_LOADED(event, addon)
 	if( addon ~= "+MMOC_Recorder" ) then return end
 	self:UnregisterEvent("ADDON_LOADED")
+	MMOCRecorderDB = SigrieDB
 	
 	self:InitializeDB()
 	if( MMOCRecorderDB.error ) then

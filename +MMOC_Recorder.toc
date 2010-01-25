@@ -2,7 +2,7 @@
 ## Title: MMO-Champion Recorder
 ## Notes: In-game data recorder for http://db.mmo-champion.com
 ## Author: Shadowed
-## SavedVariablesPerCharacter: MMOCRecorderDB
+## SavedVariablesPerCharacter: SigrieDB
 
 localization.enUS.lua
 
