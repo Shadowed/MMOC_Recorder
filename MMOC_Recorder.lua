@@ -1,7 +1,6 @@
 local Recorder = select(2, ...)
 
 local L = Recorder.L
-local MMOCRecorderDB
 local CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo = CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo
 local GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText = GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText
 
@@ -29,19 +28,19 @@ function Recorder:InitializeDB()
 	build = tonumber(build) or -1
 	
 	-- Invalidate he database if the player guid changed or the build changed
-	if( MMOCRecorderDB and ( not MMOCRecorderDB.version or not MMOCRecorderDB.build or MMOCRecorderDB.build < build ) ) then
-		MMOCRecorderDB = nil
-		debug(1, "Reset DB, %s, %s, %s.", tostring(MMOCRecorderDB.version), tostring(MMOCRecorderDB.build), tostring(build))
+	if( SigrieDB and ( not SigrieDB.version or not SigrieDB.build or SigrieDB.build < build ) ) then
+		SigrieDB = nil
+		debug(1, "Reset DB, %s, %s, %s.", tostring(SigrieDB.version), tostring(SigrieDB.build), tostring(build))
 	end
 	
 	-- Initialize the database
-	MMOCRecorderDB = MMOCRecorderDB or {}
-	MMOCRecorderDB.class = select(2, UnitClass("player"))
-	MMOCRecorderDB.race = string.upper(select(2, UnitRace("player")))
-	MMOCRecorderDB.guid = MMOCRecorderDB.guid or UnitGUID("player")
-	MMOCRecorderDB.version = version
-	MMOCRecorderDB.build = build
-	MMOCRecorderDB.locale = GetLocale()
+	SigrieDB = SigrieDB or {}
+	SigrieDB.class = select(2, UnitClass("player"))
+	SigrieDB.race = string.upper(select(2, UnitRace("player")))
+	SigrieDB.guid = SigrieDB.guid or UnitGUID("player")
+	SigrieDB.version = version
+	SigrieDB.build = build
+	SigrieDB.locale = GetLocale()
 	
 	self.db = {}
 end
@@ -49,25 +48,24 @@ end
 -- GUID changes infrequently enough, I'm not too worried about this
 function Recorder:PLAYER_LOGIN()
 	local guid = UnitGUID("player")
-	if( MMOCRecorderDB.guid and MMOCRecorderDB.guid ~= guid ) then
-		MMOCRecorderDB = nil
+	if( SigrieDB.guid and SigrieDB.guid ~= guid ) then
+		SigrieDB = nil
 		self:InitializeDB()
 		debug(1, "Reset DB, GUID changed.")
 	end
-	MMOCRecorderDB.guid = guid
+	SigrieDB.guid = guid
 end
 
 function Recorder:ADDON_LOADED(event, addon)
 	if( addon ~= "+MMOC_Recorder" ) then return end
 	self:UnregisterEvent("ADDON_LOADED")
-	MMOCRecorderDB = SigrieDB
 	
 	self:InitializeDB()
-	if( MMOCRecorderDB.error ) then
-		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Message: %s"], MMOCRecorderDB.error.msg))
-		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Trace: %s"], MMOCRecorderDB.error.trace))
-		self:Print(L["An error happened while Recorder was serializing your data, please report the above error. You might have to scroll up to see it all."])
-		MMOCRecorderDB.error = nil
+	if( SigrieDB.error ) then
+		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Message: %s"], SigrieDB.error.msg))
+		DEFAULT_CHAT_FRAME:AddMessage(string.format(L["Trace: %s"], SigrieDB.error.trace))
+		self:Print(L["An error happened while the MMOC Recorder was serializing your data, please report the above error. You might have to scroll up to see it all."])
+		SigrieDB.error = nil
 	end
 	
 	self.tooltip = CreateFrame("GameTooltip", "RecorderTooltip", UIParent, "GameTooltipTemplate")
@@ -123,8 +121,8 @@ function Recorder:GetBasicData(parent, key)
 	if( self.db[parent][key] ) then return self.db[parent][key] end
 	
 	-- Load it out of the database, we've already got it
-	if( MMOCRecorderDB[parent] and MMOCRecorderDB[parent][key] ) then
-		local func, msg = loadstring("return " .. MMOCRecorderDB[parent][key])
+	if( SigrieDB[parent] and SigrieDB[parent][key] ) then
+		local func, msg = loadstring("return " .. SigrieDB[parent][key])
 		if( func ) then
 			self.db[parent][key] = func()
 		else
@@ -145,8 +143,8 @@ function Recorder:GetData(parent, child, key)
 	if( self.db[parent][child][key] ) then return self.db[parent][child][key] end
 	
 	-- Load it out of the database, we've already got it
-	if( MMOCRecorderDB[parent] and MMOCRecorderDB[parent][child] and MMOCRecorderDB[parent][child][key] ) then
-		local func, msg = loadstring("return " .. MMOCRecorderDB[parent][child][key])
+	if( SigrieDB[parent] and SigrieDB[parent][child] and SigrieDB[parent][child][key] ) then
+		local func, msg = loadstring("return " .. SigrieDB[parent][child][key])
 		if( func ) then
 			self.db[parent][child][key] = func()
 		else
@@ -306,7 +304,7 @@ local reputationModifiers = {
 }
 	
 function Recorder:HasReputationModifier()
-	if( MMOCRecorderDB.race == "HUMAN" ) then return true end
+	if( SigrieDB.race == "HUMAN" ) then return true end
 	
 	for name in pairs(reputationModifiers) do
 		if( UnitBuff("player", name) ) then
@@ -410,27 +408,28 @@ end
 function Recorder:RecordZoneLocation(type)
 	local x, y, zone, level = self:RecordLocation()
 	local zoneData = self:GetData("zone", ZONE_DIFFICULTY, zone)
+	zoneData.coords = zoneData.coords or {}
 	
 	-- See if we already have an entry for them
-	for i=1, #(zoneData), 4 do
-		local npcX, npcY, npcLevel, npcCount = zoneData[i], zoneData[i + 1], zoneData[i + 2], zoneData[i + 3]
+	for i=1, #(zoneData.coords), 4 do
+		local npcX, npcY, npcLevel, npcCount = zoneData.coords[i], zoneData.coords[i + 1], zoneData.coords[i + 2], zoneData.coords[i + 3]
 		if( npcLevel == level ) then
 			local xDiff, yDiff = math.abs(npcX - x), math.abs(npcY - y)
 			if( xDiff <= ALLOWED_COORD_DIFF and yDiff <= ALLOWED_COORD_DIFF ) then
-				zoneData[i] = tonumber(string.format("%.2f", (npcX + x) / 2))
-				zoneData[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2))
-				zoneData[i + 4] = npcCount + 1
+				zoneData.coords[i] = tonumber(string.format("%.2f", (npcX + x) / 2))
+				zoneData.coords[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2))
+				zoneData.coords[i + 4] = npcCount + 1
 				
-				debug(3, "Recording %s location at %.2f, %.2f in %s (%d level), counter %d", type, x, y, zone, level, zoneData[i + 4])
+				debug(3, "Recording %s location at %.2f, %.2f in %s (%d level), counter %d", type, x, y, zone, level, zoneData.coords[i + 4])
 				return zoneData
 			end
 		end
 	end
 	
-	table.insert(zoneData, x)
-	table.insert(zoneData, y)
-	table.insert(zoneData, level)
-	table.insert(zoneData, 1)
+	table.insert(zoneData.coords, x)
+	table.insert(zoneData.coords, y)
+	table.insert(zoneData.coords, level)
+	table.insert(zoneData.coords, 1)
 	debug(3, "Recording %s location at %.2f, %.2f in %s (%d level), counter %d", type, x, y, zone, level, 1)
 	
 	return zoneData
@@ -438,13 +437,14 @@ end
 
 -- Location, location, location
 function Recorder:RecordDataLocation(type, npcID, isGeneric)
-	local npcData = self:GetData(type, ZONE_DIFFICULTY, npcID)
 	local x, y, zone, level = self:RecordLocation()
 	local coordModifier = isGeneric and 200 or 0
+	local npcData = self:GetData(type, ZONE_DIFFICULTY, npcID)
+	npcData.coords = npcData.coords or {}
 	
 	-- See if we already have an entry for them
-	for i=1, #(npcData), 5 do
-		local npcX, npcY, npcZone, npcLevel, npcCount = npcData[i], npcData[i + 1], npcData[i + 2], npcData[i + 3], npcData[i + 4]
+	for i=1, #(npcData.coords), 5 do
+		local npcX, npcY, npcZone, npcLevel, npcCount = npcData.coords[i], npcData.coords[i + 1], npcData.coords[i + 2], npcData.coords[i + 3], npcData.coords[i + 4]
 		if( npcLevel == level and npcZone == zone ) then
 			-- If the recorded one is a generic coord, will check against the "normal" one to see if we can merge them
 			-- if they are both generics, will readd the 200 modifier
@@ -458,22 +458,22 @@ function Recorder:RecordDataLocation(type, npcID, isGeneric)
 			
 			local xDiff, yDiff = math.abs(npcX - x), math.abs(npcY - y)
 			if( xDiff <= ALLOWED_COORD_DIFF and yDiff <= ALLOWED_COORD_DIFF ) then
-				npcData[i] = tonumber(string.format("%.2f", (npcX + x) / 2)) + modifier
-				npcData[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2)) + modifier
-				npcData[i + 4] = npcCount + 1
+				npcData.coords[i] = tonumber(string.format("%.2f", (npcX + x) / 2)) + modifier
+				npcData.coords[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2)) + modifier
+				npcData.coords[i + 4] = npcCount + 1
 				
-				debug(3, "Recording npc %s (%s) location at %.2f, %.2f in %s (%d level), counter %d, generic %s", npcID, type, x, y, zone, level, npcData[i + 4], tostring(isGeneric))
+				debug(3, "Recording npc %s (%s) location at %.2f, %.2f in %s (%d level), counter %d, generic %s", npcID, type, x, y, zone, level, npcData.coords[i + 4], tostring(isGeneric))
 				return npcData
 			end
 		end
 	end
 	
 	-- No data yet
-	table.insert(npcData, x + coordModifier)
-	table.insert(npcData, y + coordModifier)
-	table.insert(npcData, zone)
-	table.insert(npcData, level)
-	table.insert(npcData, 1)
+	table.insert(npcData.coords, x + coordModifier)
+	table.insert(npcData.coords, y + coordModifier)
+	table.insert(npcData.coords, zone)
+	table.insert(npcData.coords, level)
+	table.insert(npcData.coords, 1)
 	
 	debug(3, "Recording npc %s location at %.2f, %.2f in %s (%d level), generic %s", npcID, x, y, zone, level, tostring(isGeneric))
 	return npcData
@@ -1106,15 +1106,15 @@ end
 
 -- Because serializing happens during logout, will save the error so users can report them still, without having BugGrabber
 local function serializeError(msg)
-	if( not MMOCRecorderDB.error ) then
-		MMOCRecorderDB.error = {msg = msg, trace = debugstack(2)}
+	if( not SigrieDB.error ) then
+		SigrieDB.error = {msg = msg, trace = debugstack(2)}
 	end
 end
 
 function Recorder:PLAYER_LOGOUT()
 	local errorHandler = geterrorhandler()
 	seterrorhandler(serializeError)
-	serializeDatabase(self.db, MMOCRecorderDB)
+	serializeDatabase(self.db, SigrieDB)
 	seterrorhandler(errorHandler)
 end
 
@@ -1143,7 +1143,7 @@ SlashCmdList["MMOCRECORDER"] = function(msg)
 				button1 = L["Yes"],
 				button2 = L["No"],
 				OnAccept = function()
-					MMOCRecorderDB = nil
+					SigrieDB = nil
 					Recorder:InitializeDB()
 					Recorder:Print(L["Reset all saved data for this character."])
 				end,
