@@ -296,7 +296,7 @@ function Recorder:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourc
 		
 	elseif( eventType == "PARTY_KILL" and bit.band(destFlags, COMBATLOG_OBJECT_REACTION_HOSTILE) == COMBATLOG_OBJECT_REACTION_HOSTILE and bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
 		repGain.npcID = self.GUID_ID[destGUID]
-		repGain.npcType = self.NPC_TYPES[destGUID]
+		repGain.npcType = self.GUID_TYPE[destGUID]
 		repGain.timeout = GetTime() + 1
 	end
 end
