@@ -329,18 +329,6 @@ function Recorder:COMBAT_TEXT_UPDATE(event, type, faction, amount)
 	end
 end
 
--- Handle any incompatabilies that other mods can cause
-function Recorder:StripData(text)
-	-- Strip [<level crap>] <quest title>
-	text = string.gsub(text, "%[(.+)%]", "")
-	-- Strip color codes
-	text = string.gsub(text, "|c%x%x%x%x%x%x%x%x(.+)|r", "%1")
-	-- Strip (low level) at the end of a quest
-	text = string.gsub(text, "(.+) %((.+)%)", "%1")
-
-	return string.trim(text)
-end
-
 -- Handle quest abandoning
 hooksecurefunc("AbandonQuest", function()
 	abandonedName = setToAbandon
@@ -913,7 +901,7 @@ end
 
 function Recorder:QuestProgress()
 	local guid = UnitGUID("npc")
-	local questGiven = self:StripData(GetTitleText())
+	local questGiven = GetTitleText()
 	local id, type = self.NPC_ID[guid], self.NPC_TYPE[guid]
 	
 	-- We cannot get itemid from GUID, so we have to do an inventory scan to find what we want
