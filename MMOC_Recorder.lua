@@ -304,7 +304,7 @@ local reputationModifiers = {
 }
 	
 function Recorder:HasReputationModifier()
-	if( SigrieDB.race == "HUMAN" ) then return true end
+	if( select(2, UnitRace("player")) == "Human" ) then return true end
 	
 	for name in pairs(reputationModifiers) do
 		if( UnitBuff("player", name) ) then
@@ -1132,6 +1132,7 @@ SlashCmdList["MMOCRECORDER"] = function(msg)
 				button2 = L["No"],
 				OnAccept = function()
 					SigrieDB = nil
+					Sigrie.db = {}
 					Recorder:InitializeDB()
 					Recorder:Print(L["Reset all saved data for this character."])
 				end,
