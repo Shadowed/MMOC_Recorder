@@ -1182,7 +1182,7 @@ SlashCmdList["MMOCRECORDER"] = function(msg)
 				button2 = L["No"],
 				OnAccept = function()
 					SigrieDB = nil
-					Sigrie.db = {}
+					Recorder.db = {}
 					Recorder:InitializeDB()
 					Recorder:Print(L["Reset all saved data for this character."])
 				end,
