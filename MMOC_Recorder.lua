@@ -301,6 +301,7 @@ local reputationModifiers = {
 	[GetSpellInfo(24705)] = true, -- Invocation of the Wickerman
 	[GetSpellInfo(39913)] = true, -- Nazgrel's Fervor
 	[GetSpellInfo(61849)] = true, -- The Spirit of Sharing
+	[GetSpellInfo(58440)] = true, -- Pork Red Ribbon (Cause Adys is crazy)
 }
 	
 function Recorder:HasReputationModifier()
