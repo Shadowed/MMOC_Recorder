@@ -9,14 +9,16 @@ local ALLOWED_COORD_DIFF = 0.02
 local LOOT_EXPIRATION = 10 * 60
 local ZONE_DIFFICULTY = 0
 
-local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000}
+local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000, ["book"] = 0x2000}
 local BATTLEFIELD_TYPES = {["av"] = 1, ["wsg"] = 2, ["ab"] = 3, ["nagrand"] = 4, ["bem"] = 5, ["all_arenas"] = 6, ["eots"] = 7, ["rol"] = 8, ["sota"] = 9, ["dalaran"] = 10, ["rov"] = 11, ["ioc"] = 30, ["all_battlegrounds"] = 32}
 local BATTLEFIELD_MAP = {[L["Alterac Valley"]] = "av", [L["Warsong Gulch"]] = "wsg", [L["Eye of the Storm"]] = "eots", [L["Strand of the Ancients"]] = "sota", [L["Isle of Conquest"]] = "ioc", [L["All Arenas"]] = "all_arenas"}
+local npcToDB = {["npc"] = "npcs", ["item"] = "items", ["object"] = "objects"}
 
 local setToAbandon, abandonedName, lootedGUID
 local repGain, lootedGUID = {}, {}
 local playerName = UnitName("player")
 
+if( DEBUG_LEVEL > 0 ) then MMOCRecorder = Recorder end
 local function debug(level, msg, ...)
 	if( level <= DEBUG_LEVEL ) then
 		print(string.format(msg, ...))
@@ -109,6 +111,8 @@ function Recorder:ADDON_LOADED(event, addon)
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 	self:RegisterEvent("ZONE_CHANGED_NEW_AREA")	
 	self:RegisterEvent("PLAYER_LOGIN")
+	--self:RegisterEvent("ITEM_TEXT_READY")
+	self:RegisterEvent("ITEM_TEXT_BEGIN")
 	
 	self:PLAYER_LEAVING_WORLD()
 end
@@ -186,8 +190,9 @@ local npcTypeMetatable = {
 }
 
 function Recorder:PLAYER_LEAVING_WORLD()
-	self.NPC_ID = setmetatable({}, npcIDMetatable)
-	self.NPC_TYPE = setmetatable({}, npcTypeMetatable)
+	self:SaveQueuedQuest()
+	self.GUID_ID = setmetatable({}, npcIDMetatable)
+	self.GUID_TYPE = setmetatable({}, npcTypeMetatable)
 end
 
 local function parseText(text)
@@ -282,13 +287,16 @@ function Recorder:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourc
 	
 	if( ( eventType == "SPELL_CAST_START" or eventType == "SPELL_CAST_SUCCESS" ) and bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
 		local spellID = ...
-		local npcData = self:GetData("npcs", ZONE_DIFFICULTY, self.NPC_ID[sourceGUID])
+		local npcData = self:GetData("npcs", ZONE_DIFFICULTY, self.GUID_ID[sourceGUID])
 		npcData.spells = npcData.spells or {}
 		npcData.spells[spellID] = true
-		debug(4, "%s casting spell %s (%d)", sourceName, select(2, ...), spellID)
+		if( not npcData.spells[spellID] ) then
+			debug(4, "%s casting spell %s (%d)", sourceName, select(2, ...), spellID)
+		end
 		
 	elseif( eventType == "PARTY_KILL" and bit.band(destFlags, COMBATLOG_OBJECT_REACTION_HOSTILE) == COMBATLOG_OBJECT_REACTION_HOSTILE and bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
-		repGain.npcID = self.NPC_ID[destGUID]
+		repGain.npcID = self.GUID_ID[destGUID]
+		repGain.npcType = self.NPC_TYPES[destGUID]
 		repGain.timeout = GetTime() + 1
 	end
 end
@@ -320,13 +328,12 @@ function Recorder:COMBAT_TEXT_UPDATE(event, type, faction, amount)
 	if( type ~= "FACTION" ) then return end
 	
 	if( repGain.timeout and repGain.timeout >= GetTime() and not self:HasReputationModifier() ) then
-		local npcID = repGain.npcID
-		local npcData = self:GetData("npcs", difficulty, npc)
+		local npcData = self:GetData(npcToDB[repGain.npcType], difficulty, repGain.npcID)
 		npcData.info = npcData.info or {}
 		npcData.info.faction = faction
 		npcData.info.factionAmount = amount
 		
-		debug(2, "NPC #%d gives %d %s faction", npcID, amount, faction)
+		debug(2, "NPC #%d gives %d %s faction", repGain.npcID, amount, faction)
 	end
 end
 
@@ -389,6 +396,11 @@ function Recorder:RecordLocation()
 
 	SetMapZoom(currentCont, currentZone)
 	SetDungeonMapLevel(currentLevel)
+	
+	-- No map, return zone name + sub zone
+	if( x == 0 and y == 0 ) then
+		return 0, 0, GetRealZoneText(), GetSubZoneText()
+	end
 
 	return tonumber(string.format("%.2f", x * 100)), tonumber(string.format("%.2f", y * 100)), zone, dungeonLevel
 end
@@ -471,10 +483,10 @@ end
 -- Add all of the data like title, health, power, faction, etc here
 function Recorder:GetCreatureDB(unit)
 	local guid = UnitGUID(unit)
-	local npcID, npcType = self.NPC_ID[guid], self.NPC_TYPE[guid]
+	local npcID, npcType = self.GUID_ID[guid], self.GUID_TYPE[guid]
 	if( not npcID or not npcType ) then return end
-
-	return self:GetData("npcs", ZONE_DIFFICULTY, npcID), npcID, npcType
+	
+	return self:GetData(npcToDB[npcType], ZONE_DIFFICULTY, npcID), npcID, npcType
 end
 
 function Recorder:RecordCreatureType(npcData, type)
@@ -508,7 +520,7 @@ function Recorder:RecordCreatureData(type, unit)
 		self:RecordCreatureType(npcData, type)
 	end
 
-	self:RecordDataLocation("npcs", npcID, type == "generic")
+	self:RecordDataLocation(npcToDB[npcType], npcID, type == "generic")
 	return npcData
 end
 
@@ -695,7 +707,7 @@ function Recorder:LOOT_OPENED()
 		lootedGUID[guid] = time + LOOT_EXPIRATION
 
 		-- Make sure the GUID is /actually an NPC ones
-		local npcID = self.NPC_TYPE[guid] == "npc" and self.NPC_ID[guid]
+		local npcID = self.GUID_TYPE[guid] == "npc" and self.GUID_ID[guid]
 		if( npcID ) then
 			npcData = self:RecordCreatureData(nil, "target")
 			
@@ -836,7 +848,7 @@ end
 
 -- Quest log updated, see what changed quest-wise
 local questGiverType, questGiverID
-local tempQuestLog, questLog = {}
+local tempQuestLog, questByName, questLog = {}, {}
 function Recorder:QUEST_LOG_UPDATE(event)
 	-- Scan quest log
 	local foundQuests, index = 0, 1
@@ -850,6 +862,11 @@ function Recorder:QUEST_LOG_UPDATE(event)
 			
 			local questID = string.match(GetQuestLink(index), "quest:(%d+)")
 			tempQuestLog[tonumber(questID)] = true
+			
+			-- If the quest log has it, then will be able to get the GUID for it
+			if( questByName.name == questName ) then
+				table.wipe(questByName)
+			end
 		end
 		
 		index = index + 1
@@ -900,15 +917,33 @@ function Recorder:QUEST_LOG_UPDATE(event)
 	table.wipe(tempQuestLog)
 end
 
+-- Because we can't save by ID for these, but we don't want to store all by name, the data will get queued
+-- so we can make sure it's not going to popup in the quest log
+function Recorder:SaveQueuedQuest()
+	if( questByName.name ) then
+		debug(3, "Found quest %s that does not enter log, starts/ends at %d", questByName.name, questByName.id)
+
+		local questData = self:GetBasicData("quests", questByName.name)
+		questData.startsID = id
+		questData.endsID = id
+		questByName.name = nil
+	end
+end
+
 function Recorder:QuestProgress()
 	local guid = UnitGUID("npc")
-	local questGiven = GetTitleText()
-	local id, type = self.NPC_ID[guid], self.NPC_TYPE[guid]
+	local id, type = self.GUID_ID[guid], self.GUID_TYPE[guid]
 	
-	-- We cannot get itemid from GUID, so we have to do an inventory scan to find what we want
+	-- Don't need to record start location of items
 	if( type ~= "item" ) then
 		questGiverID, questGiverType = id, type
 		self:RecordCreatureData(nil, "npc")
+		self:SaveQueuedQuest()
+		
+		-- Store it by name temporarily as the NPC starting and ending it
+		local id = questGiverID * (questGiverType == "npc" and 1 or -1)
+		questByName.name = GetTitleText()
+		questByName.id = id
 	end
 end
 
@@ -998,6 +1033,15 @@ function Recorder:BATTLEFIELDS_SHOW()
 	end
 end
 
+-- Record book locations
+function Recorder:ITEM_TEXT_BEGIN()
+	-- ItemTextGetCreator() is true if the item is from an user, such as mail letters
+	local guid = UnitGUID("npc")
+	if( not ItemTextGetCreator() and self.GUID_TYPE[guid] ) then
+		self:RecordDataLocation("objects", self.GUID_ID[guid])
+	end
+end
+
 -- Gossip returns most of the types: banker, battlemaster, binder, gossip, tabard, taxi, trainer, vendor
 -- It's a way of identifying what a NPC does without the player checking out every single option
 local function checkGossip(...)
@@ -1012,8 +1056,10 @@ local function checkGossip(...)
 end
 
 function Recorder:GOSSIP_SHOW()
+	-- Have more than one gossip
 	if( GetNumGossipAvailableQuests() > 0 or GetNumGossipActiveQuests() > 0 or GetNumGossipOptions() >= 2 ) then 
 		checkGossip(GetGossipOptions())
+	-- No gossip, just grab the location
 	elseif( GetNumGossipAvailableQuests() == 0 and GetNumGossipActiveQuests() == 0 and GetNumGossipOptions() == 0 ) then
 		self:RecordCreatureData(nil, "npc")
 	end
@@ -1078,16 +1124,19 @@ local function writeTable(tbl)
 	return "{" .. data .. "}"
 end
 
-local function serializeDatabase(tbl, db)
+local function serializeDatabase(tbl, db, parent)
 	for key, value in pairs(tbl) do
 		if( type(value) == "table" ) then
 			-- Find the serializer marker, so we know to just turn it into a string and don't go in farther
 			if( value.START_SERIALIZER ) then
+				-- For Adys
+				if( parent == "objects" ) then key = key * -1 end
+				 
 				db[key] = writeTable(value)
 			-- Still no serialize marker, so just keep building the structure
 			else
 				db[key] = db[key] or {}
-				serializeDatabase(value, db[key])
+				serializeDatabase(value, db[key], parent or key)
 			end   
 		end
 	end

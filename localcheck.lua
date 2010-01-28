@@ -46,7 +46,7 @@ local function scanFile(path)
 end
 
 local function scanFolder(path)
-	for file in io.popen(string.format("dir /B \"%s\"", (path or ""))):lines() do
+	for file in io.popen(string.format("ls -1 \"%s\"", (path or ""))):lines() do
 		local extension = string.match(file, "%.([%a%d]+)$")
 		if( file ~= "" and not extension and file ~= "libs" ) then
 			if( path ) then
@@ -64,7 +64,7 @@ local function scanFolder(path)
 	end
 end
 
-scanFolder()
+scanFolder("./")
 
 output("Total keys found " .. totalFound)
 
