@@ -697,7 +697,7 @@ function Recorder:LOOT_OPENED()
 		-- Make sure the GUID is /actually an NPC ones
 		local npcID = self.NPC_TYPE[guid] == "npc" and self.NPC_ID[guid]
 		if( npcID ) then
-			npcData = self:RecordCreatureData("mob", "target")
+			npcData = self:RecordCreatureData(nil, "target")
 			
 			-- This is necessary because sending it just to raid or party without checking can cause not in raid errors
 			local instanceType = select(2, IsInInstance())
@@ -908,7 +908,7 @@ function Recorder:QuestProgress()
 	-- We cannot get itemid from GUID, so we have to do an inventory scan to find what we want
 	if( type ~= "item" ) then
 		questGiverID, questGiverType = id, type
-		self:RecordCreatureData("quest", "npc")
+		self:RecordCreatureData(nil, "npc")
 	end
 end
 
