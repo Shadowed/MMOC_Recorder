@@ -1129,9 +1129,6 @@ local function serializeDatabase(tbl, db, parent)
 		if( type(value) == "table" ) then
 			-- Find the serializer marker, so we know to just turn it into a string and don't go in farther
 			if( value.START_SERIALIZER ) then
-				-- For Adys
-				if( parent == "objects" ) then key = key * -1 end
-				 
 				db[key] = writeTable(value)
 			-- Still no serialize marker, so just keep building the structure
 			else
