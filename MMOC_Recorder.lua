@@ -9,10 +9,12 @@ local ALLOWED_COORD_DIFF = 0.02
 local LOOT_EXPIRATION = 10 * 60
 local ZONE_DIFFICULTY = 0
 
+local npcToDB = {["npc"] = "npcs", ["item"] = "items", ["object"] = "objects"}
 local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000, ["book"] = 0x2000}
 local BATTLEFIELD_TYPES = {["av"] = 1, ["wsg"] = 2, ["ab"] = 3, ["nagrand"] = 4, ["bem"] = 5, ["all_arenas"] = 6, ["eots"] = 7, ["rol"] = 8, ["sota"] = 9, ["dalaran"] = 10, ["rov"] = 11, ["ioc"] = 30, ["all_battlegrounds"] = 32}
 local BATTLEFIELD_MAP = {[L["Alterac Valley"]] = "av", [L["Warsong Gulch"]] = "wsg", [L["Eye of the Storm"]] = "eots", [L["Strand of the Ancients"]] = "sota", [L["Isle of Conquest"]] = "ioc", [L["All Arenas"]] = "all_arenas"}
-local npcToDB = {["npc"] = "npcs", ["item"] = "items", ["object"] = "objects"}
+-- Items to ignore when looted in a *regular* way
+local IGNORE_LOOT = {[34055] = true}
 
 local setToAbandon, abandonedName, lootedGUID
 local repGain, lootedGUID = {}, {}
@@ -675,7 +677,7 @@ function Recorder:LOOT_CLOSED()
 end
 
 function Recorder:LOOT_OPENED()
-	local npcData
+	local npcData, isMob
 	local time = GetTime()
 	-- Object set, so looks like we're good
 	if( self.activeSpell.object and self.activeSpell.endTime <= (time + 0.50) ) then
@@ -710,6 +712,7 @@ function Recorder:LOOT_OPENED()
 		local npcID = self.GUID_TYPE[guid] == "npc" and self.GUID_ID[guid]
 		if( npcID ) then
 			npcData = self:RecordCreatureData(nil, "target")
+			isMob = true
 			
 			-- This is necessary because sending it just to raid or party without checking can cause not in raid errors
 			local instanceType = select(2, IsInInstance())
@@ -741,9 +744,9 @@ function Recorder:LOOT_OPENED()
 		-- Record item data
 		elseif( LootSlotIsItem(i) ) then
 			local link = GetLootSlotLink(i)
-			if( link ) then
+			local itemID = link and tonumber(string.match(link, "item:(%d+)"))
+			if( itemID and ( not isMob or not IGNORE_LOOT[itemID] ) ) then
 				local quantity = select(3, GetLootSlotInfo(i))
-				local itemID = tonumber(string.match(link, "item:(%d+)"))
 				
 				-- If we have an NPC ID then associate the npc with dropping that item
 				npcData.loot = npcData.loot or {}
