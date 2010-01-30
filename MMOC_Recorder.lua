@@ -4,7 +4,7 @@ local L = Recorder.L
 local CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo = CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo
 local GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText = GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText
 
-local DEBUG_LEVEL = select(6, GetAddOnInfo("TestCode")) and 0 or 4
+local DEBUG_LEVEL = 4
 local ALLOWED_COORD_DIFF = 0.02
 local LOOT_EXPIRATION = 10 * 60
 local ZONE_DIFFICULTY = 0
@@ -330,7 +330,7 @@ function Recorder:COMBAT_TEXT_UPDATE(event, type, faction, amount)
 	if( type ~= "FACTION" ) then return end
 	
 	if( repGain.timeout and repGain.timeout >= GetTime() and not self:HasReputationModifier() ) then
-		local npcData = self:GetData(npcToDB[repGain.npcType], difficulty, repGain.npcID)
+		local npcData = self:GetData(npcToDB[repGain.npcType], ZONE_DIFFICULTY, repGain.npcID)
 		npcData.info = npcData.info or {}
 		npcData.info.faction = faction
 		npcData.info.factionAmount = amount
