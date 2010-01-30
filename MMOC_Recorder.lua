@@ -1037,7 +1037,9 @@ function Recorder:CONFIRM_BINDER()
 end
 
 function Recorder:GUILDBANKFRAME_OPENED()
-	self:RecordCreatureData("guildbank", "npc")
+	if( UnitGUID("npc") ) then
+		self:RecordCreatureData("guildbank", "npc")
+	end
 end
 
 function Recorder:PLAYER_TARGET_CHANGED()
