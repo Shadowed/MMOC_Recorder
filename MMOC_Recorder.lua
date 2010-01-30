@@ -1,4 +1,5 @@
 local Recorder = select(2, ...)
+Recorder.version = 1
 
 local L = Recorder.L
 local CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo = CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo
@@ -45,6 +46,7 @@ function Recorder:InitializeDB()
 	SigrieDB.version = version
 	SigrieDB.build = build
 	SigrieDB.locale = GetLocale()
+	SigrieDB.addonVersion = self.version
 	
 	self.db = {}
 end
