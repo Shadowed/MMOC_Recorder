@@ -643,7 +643,7 @@ function Recorder:UpdateMerchantData(npcData)
 				local amount, link = select(2, GetMerchantItemCostItem(i, extendedIndex))
 				if( link ) then
 					itemCost = itemCost or {}
-					itemCost[string.match(link, "item:(%d+)")] = amount
+					itemCost[tonumber(string.match(link, "item:(%d+)"))] = amount
 				end
 			end
 			
@@ -1107,7 +1107,7 @@ local function writeTable(tbl)
 			if( type(key) == "number" ) then
 				key = string.format("[%s]", key)
 				-- This will match any punctuation, spacing or control characters, basically anything that requires wrapping around them
-			elseif( string.match(key, "[%p%s%c]") ) then
+			elseif( string.match(key, "[%p%s%c%d]") ) then
 				key = string.format("[\"%s\"]", key)
 			end
 
@@ -1119,7 +1119,7 @@ local function writeTable(tbl)
 				data = string.format("%s%s=%s;", data, key, tostring(value))
 				-- foo = "bar"
 			else
-				data = string.format("%s%s=\"%s\";", data, key, tostring(encode(value)))
+				data = string.format("%s%s=[[%s]];", data, key, tostring(encode(value)))
 			end
 		end
 	end
