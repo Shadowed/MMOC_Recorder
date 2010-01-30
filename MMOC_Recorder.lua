@@ -134,8 +134,7 @@ function Recorder:GetBasicData(parent, key)
 		if( func ) then
 			self.db[parent][key] = func()
 		else
-			error(msg, 3)
-			return nil
+			geterrorhandler(msg)
 		end
 	else
 		self.db[parent][key] = {}
@@ -156,8 +155,7 @@ function Recorder:GetData(parent, child, key)
 		if( func ) then
 			self.db[parent][child][key] = func()
 		else
-			error(msg, 3)
-			return nil
+			geterrorhandler(msg)
 		end
 	else
 		self.db[parent][child][key] = {}
@@ -285,17 +283,18 @@ end
 
 -- Reputation and spell handling
 local COMBATLOG_OBJECT_REACTION_HOSTILE = COMBATLOG_OBJECT_REACTION_HOSTILE
-local eventsRegistered = {["PARTY_KILL"] = true, ["SPELL_CAST_SUCCESS"] = true, ["SPELL_CAST_START"] = true}
+local eventsRegistered = {["PARTY_KILL"] = true, ["SPELL_CAST_SUCCESS"] = true, ["SPELL_CAST_START"] = true, ["SPELL_AURA_APPLIED"] = true}
 function Recorder:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, ...)
 	if( not eventsRegistered[eventType] ) then return end
 	
-	if( ( eventType == "SPELL_CAST_START" or eventType == "SPELL_CAST_SUCCESS" ) and bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
+	if( ( eventType == "SPELL_CAST_START" or eventType == "SPELL_CAST_SUCCESS" or eventType == "SPELL_AURA_APPLIED" ) and bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
 		local spellID = ...
+		local type = eventType == "SPELL_AURA_APPLIED" and "auras" or "spells"
 		local npcData = self:GetData("npcs", ZONE_DIFFICULTY, self.GUID_ID[sourceGUID])
-		npcData.spells = npcData.spells or {}
-		npcData.spells[spellID] = true
-		if( not npcData.spells[spellID] ) then
-			debug(4, "%s casting spell %s (%d)", sourceName, select(2, ...), spellID)
+		npcData[type] = npcData[type] or {}
+		npcData[type][spellID] = true
+		if( not npcData[type][spellID] ) then
+			debug(4, "%s casting %s %s (%d)", sourceName, type, select(2, ...), spellID)
 		end
 		
 	elseif( eventType == "PARTY_KILL" and bit.band(destFlags, COMBATLOG_OBJECT_REACTION_HOSTILE) == COMBATLOG_OBJECT_REACTION_HOSTILE and bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
@@ -372,6 +371,8 @@ Recorder.InteractSpells = {
 	[GetSpellInfo(13615) or ""] = {item = true, lootByZone = true, lootType = "fishing"},
 	-- Pick Pocket
 	[GetSpellInfo(921) or ""] = {item = true, location = false, parentNPC = true, lootType = "pickpocket"},
+	-- Used when opening an item, such as Champion's Purse
+	["Bag"] = {item = true, location = false, parentItem = true},
 	-- Pick Lock
 	--[GetSpellInfo(1804) or ""] = {item = true, location = false, parentItem = true},
 }
@@ -763,13 +764,30 @@ function Recorder:LOOT_OPENED()
 	end
 end
 
--- Ensure that we still get item data even if the person is using a /use macro
-hooksecurefunc("SecureCmdUseItem", function(name, bag, slot, target)
-	if( not target and Recorder.activeSpell.object and Recorder.activeSpell.object.parentItem and not Recorder.activeSpell.useSet ) then
-		Recorder.activeSpell.item = select(2, GetItemInfo(name))
+-- Record items being opened
+local function itemUsed(link)
+	if( Recorder.activeSpell.object and Recorder.activeSpell.object.parentItem and not Recorder.activeSpell.useSet ) then
+		Recorder.activeSpell.item = link
 		Recorder.activeSpell.useSet = true
+	elseif( not Recorder.activeSpell.endTime or Recorder.activeSpell.endTime <= (time() + 0.30) ) then
+		Recorder.activeSpell.item = link
+		Recorder.activeSpell.endTime = GetTime()
+		Recorder.activeSpell.object = Recorder.InteractSpells.Bag
+	end
+end
+
+hooksecurefunc("UseContainerItem", function(bag, slot, target)
+	if( not target ) then
+		itemUsed(GetContainerItemLink(bag, slot))
 	end
 end)
+
+hooksecurefunc("UseItemByName", function(name, target)
+	if( not target ) then
+		itemUsed(select(2, GetItemInfo(name)))
+	end
+end)
+
 
 function Recorder:UNIT_SPELLCAST_SENT(event, unit, name, rank, target)
 	if( unit ~= "player" or not self.InteractSpells[name] ) then return end
