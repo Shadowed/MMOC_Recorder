@@ -11,7 +11,7 @@ local LOOT_EXPIRATION = 10 * 60
 local ZONE_DIFFICULTY = 0
 
 local npcToDB = {["npc"] = "npcs", ["item"] = "items", ["object"] = "objects"}
-local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000, ["book"] = 0x2000}
+local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000, ["book"] = 0x2000, ["talentwipe"] = 0x3000}
 local BATTLEFIELD_TYPES = {["av"] = 1, ["wsg"] = 2, ["ab"] = 3, ["nagrand"] = 4, ["bem"] = 5, ["all_arenas"] = 6, ["eots"] = 7, ["rol"] = 8, ["sota"] = 9, ["dalaran"] = 10, ["rov"] = 11, ["ioc"] = 30, ["all_battlegrounds"] = 32}
 local BATTLEFIELD_MAP = {[L["Alterac Valley"]] = "av", [L["Warsong Gulch"]] = "wsg", [L["Eye of the Storm"]] = "eots", [L["Strand of the Ancients"]] = "sota", [L["Isle of Conquest"]] = "ioc", [L["All Arenas"]] = "all_arenas"}
 -- Items to ignore when looted in a *regular* way
@@ -403,7 +403,7 @@ function Recorder:RecordLocation()
 	SetDungeonMapLevel(currentLevel)
 	
 	-- No map, return zone name + sub zone
-	if( x == 0 and y == 0 ) then
+	if( x == 0 and y == 0 and IsInInstance() ) then
 		return 0, 0, GetRealZoneText(), GetSubZoneText()
 	end
 
@@ -415,6 +415,23 @@ function Recorder:RecordZoneLocation(type)
 	local x, y, zone, level = self:RecordLocation()
 	local zoneData = self:GetData("zone", ZONE_DIFFICULTY, zone)
 	zoneData.coords = zoneData.coords or {}
+	
+	if( x == 0 and y == 0 and type(level) == "string" ) then
+		for i=1, #(zoneData.coords), 5 do
+			if( zoneData.coords[i] == 0 and zoneData.coords[i + 1] == 0 and zoneData.coords[i + 2] == zone and zoneData.coords[i + 3] == level ) then
+				return zoneData
+			end
+		end
+		
+		table.insert(zoneData.coords, x)
+		table.insert(zoneData.coords, y)
+		table.insert(zoneData.coords, zone)
+		table.insert(zoneData.coords, level)
+		table.insert(zoneData.coords, 1)
+		
+		debug(3, "Recording %s location in %s (%s), no map found", type, zone, level)
+		return zoneData
+	end
 	
 	-- See if we already have an entry for them
 	for i=1, #(zoneData.coords), 4 do
@@ -447,6 +464,23 @@ function Recorder:RecordDataLocation(type, npcID, isGeneric)
 	local coordModifier = isGeneric and 200 or 0
 	local npcData = self:GetData(type, ZONE_DIFFICULTY, npcID)
 	npcData.coords = npcData.coords or {}
+	
+	if( x == 0 and y == 0 and type(level) == "string" ) then
+		for i=1, #(npcData.coords), 5 do
+			if( npcData.coords[i] == 0 and npcData.coords[i + 1] == 0 and npcData.coords[i + 2] == zone and npcData.coords[i + 3] == level ) then
+				return npcData
+			end
+		end
+		
+		table.insert(npcData.coords, x)
+		table.insert(npcData.coords, y)
+		table.insert(npcData.coords, zone)
+		table.insert(npcData.coords, level)
+		table.insert(npcData.coords, 1)
+		
+		debug(3, "Recording npc %s (%s) location in %s (%s), no map found", npcID, type, zone, level)
+		return npcData
+	end
 	
 	-- See if we already have an entry for them
 	for i=1, #(npcData.coords), 5 do
