@@ -1025,7 +1025,7 @@ function Recorder:TAXIMAP_OPENED()
 end
 
 function Recorder:BANKFRAME_OPENED()
-	self:RecordCreatureData("banker", "npc")
+	self:RecordCreatureData("bank", "npc")
 end
 
 function Recorder:CONFIRM_XP_LOSS()
