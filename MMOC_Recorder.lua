@@ -459,10 +459,10 @@ function Recorder:RecordZoneLocation(type)
 end
 
 -- Location, location, location
-function Recorder:RecordDataLocation(type, npcID, isGeneric)
+function Recorder:RecordDataLocation(npcType, npcID, isGeneric)
 	local x, y, zone, level = self:RecordLocation()
 	local coordModifier = isGeneric and 200 or 0
-	local npcData = self:GetData(type, ZONE_DIFFICULTY, npcID)
+	local npcData = self:GetData(npcType, ZONE_DIFFICULTY, npcID)
 	npcData.coords = npcData.coords or {}
 	
 	if( x == 0 and y == 0 and type(level) == "string" ) then
@@ -478,7 +478,7 @@ function Recorder:RecordDataLocation(type, npcID, isGeneric)
 		table.insert(npcData.coords, level)
 		table.insert(npcData.coords, 1)
 		
-		debug(3, "Recording npc %s (%s) location in %s (%s), no map found", npcID, type, zone, level)
+		debug(3, "Recording npc %s (%s) location in %s (%s), no map found", npcID, npcType, zone, level)
 		return npcData
 	end
 	
@@ -502,7 +502,7 @@ function Recorder:RecordDataLocation(type, npcID, isGeneric)
 				npcData.coords[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2)) + modifier
 				npcData.coords[i + 4] = npcCount + 1
 				
-				debug(3, "Recording npc %s (%s) location at %.2f, %.2f in %s (%d level), counter %d, generic %s", npcID, type, x, y, zone, level, npcData.coords[i + 4], tostring(isGeneric))
+				debug(3, "Recording npc %s (%s) location at %.2f, %.2f in %s (%d level), counter %d, generic %s", npcID, npcType, x, y, zone, level, npcData.coords[i + 4], tostring(isGeneric))
 				return npcData
 			end
 		end
@@ -654,21 +654,37 @@ function Recorder:UpdateTrainerData(npcData)
 end
 
 -- Record merchant items
--- This should be changed to use some sort of ID, such as price .. cost to identify items
--- that way if an item is limited it won't be wiped when they review it after it's been bought out
+local quickSoldMap = {}
 function Recorder:UpdateMerchantData(npcData)
 	if( CanMerchantRepair() ) then
 		self:RecordCreatureType(npcData, "canrepair")
 	end
 	
 	npcData.sold = npcData.sold or {}
-	table.wipe(npcData.sold)
+	
+	-- Setup a map so we don't have to loop over every entry every time
+	table.wipe(quickSoldMap)
+	for _, item in pairs(npcData.sold) do
+		local id = item.id + item.price
+		if( item.itemCost ) then
+			for itemID, amount in pairs(item.itemCost) do
+				id = id + itemID + amount
+			end
+		end
+		
+		quickSoldMap[id] = item
+	end
+	
 	
 	local factionDiscount = self:GetFactionDiscount(UnitGUID("npc"))
 	for i=1, GetMerchantNumItems() do
 		local name, _, price, quantity, limitedQuantity, _, extendedCost = GetMerchantItemInfo(i)
 		if( name ) then
+			price = price / factionDiscount	
+			
 			local itemCost, bracket, rating
+			local itemID = tonumber(string.match(GetMerchantItemLink(i), "item:(%d+)"))
+			local quickID = itemID + price
 			local honor, arena, total = GetMerchantItemCostInfo(i)
 			-- If it costs honor or arena points, check for a personal rating
 			if( honor > 0 or arena > 0 ) then
@@ -678,19 +694,37 @@ function Recorder:UpdateMerchantData(npcData)
 			-- Check for item quest (Tokens -> Tier set/etc)
 			for extendedIndex=1, total do
 				local amount, link = select(2, GetMerchantItemCostItem(i, extendedIndex))
-				if( link ) then
+				local costItemID = link and tonumber(string.match(link, "item:(%d+)"))
+				if( costItemID ) then
 					itemCost = itemCost or {}
-					itemCost[tonumber(string.match(link, "item:(%d+)"))] = amount
+					itemCost[costItemID] = amount
+					
+					quickID = quickID + costItemID + amount
 				end
 			end
 			
 			honor = honor > 0 and honor or nil
 			arena = arena > 0 and arena or nil
-			limitedQuantity = limitedQuantity >= 0 and limitedQuantity or nil
 			
 			-- Can NPCs sell anything besides items? I don't think so
-			local itemID = tonumber(string.match(GetMerchantItemLink(i), "item:(%d+)"))
-			table.insert(npcData.sold, {id = itemID, price = price / factionDiscount, quantity = quantity, limitedQuantity = limitedQuantity, honor = honor, arena = arena, rating = rating, bracket = bracket, itemCost = itemCost})
+			local itemData = quickSoldMap[quickID]
+			if( not itemData ) then
+				itemData = {}
+				table.insert(npcData.sold, itemData)
+			else
+				quantity = math.max(itemData.quantity, quantity)
+				limitedQuantity = itemData.limitedQuantity and math.max(itemData.limitedQuantity, limitedQuantity)
+			end
+
+			itemData.id = itemID
+			itemData.price = price
+			itemData.quantity = quantity
+			itemData.limitedQuantity = limitedQuantity and limitedQuantity > 0 and limitedQuantity or nil
+			itemData.honor = honor
+			itemData.arena = arena
+			itemData.rating = rating
+			itemData.bracket = bracket
+			itemData.itemCost = itemCost
 		end
 	end
 end
