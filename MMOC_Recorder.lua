@@ -1016,8 +1016,8 @@ function Recorder:SaveQueuedQuest()
 		debug(3, "Found quest %s that does not enter log, starts/ends at %d", questByName.name, questByName.id)
 
 		local questData = self:GetBasicData("quests", questByName.name)
-		questData.startsID = id
-		questData.endsID = id
+		questData.startsID = questByName.id
+		questData.endsID = questByName.id
 		questByName.name = nil
 	end
 end
