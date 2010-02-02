@@ -47,7 +47,9 @@ function Recorder:InitializeDB()
 	SigrieDB.build = build
 	SigrieDB.locale = GetLocale()
 	SigrieDB.addonVersion = self.version
+	SigrieDB.factions = {}
 	
+	self.factions = SigrieDB.factions
 	self.db = {}
 end
 
@@ -79,7 +81,6 @@ function Recorder:ADDON_LOADED(event, addon)
 	self.tooltip:Hide()
 	
 	self.activeSpell = {}
-	self.factions = {}
 	self:UpdateFactions()
 
 	self:RegisterEvent("MAIL_SHOW")
@@ -223,7 +224,7 @@ local ITEM_REQ_ARENA_RATING_5V5 = "^" .. parseText(ITEM_REQ_ARENA_RATING_5V5)
 function Recorder:GetArenaData(index)
 	self.tooltip:SetMerchantItem(index)
 	for i=1, self.tooltip:NumLines() do
-		local text = _G["RecorderTooltipTextLeft" .. i]:GetText()
+		local text = string.lower(_G["RecorderTooltipTextLeft" .. i]:GetText())
 		
 		local rating = string.match(text, ITEM_REQ_ARENA_RATING_5V5)
 		if( rating ) then
