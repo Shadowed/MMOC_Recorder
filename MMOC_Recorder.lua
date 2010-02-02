@@ -35,7 +35,7 @@ function Recorder:InitializeDB()
 	-- Invalidate he database if the player guid changed or the build changed
 	if( SigrieDB and ( not SigrieDB.version or not SigrieDB.build or SigrieDB.build < build ) ) then
 		SigrieDB = nil
-		debug(1, "Reset DB, %s, %s, %s.", tostring(SigrieDB.version), tostring(SigrieDB.build), tostring(build))
+		debug(1, "Reset DB")
 	end
 	
 	-- Initialize the database
@@ -199,8 +199,8 @@ function Recorder:PLAYER_LEAVING_WORLD()
 end
 
 local function parseText(text)
-	text = string.gsub(text, "%%d", "%%d+")
-	text = string.gsub(text, "%%s", ".+")
+	text = string.gsub(text, "%%d", "(%%d+)")
+	text = string.gsub(text, "%%s", "(.+)")
 	return string.lower(string.trim(text))
 end
 
@@ -222,10 +222,10 @@ local ITEM_REQ_ARENA_RATING_3V3 = "^" .. parseText(ITEM_REQ_ARENA_RATING_3V3)
 local ITEM_REQ_ARENA_RATING_5V5 = "^" .. parseText(ITEM_REQ_ARENA_RATING_5V5)
 
 function Recorder:GetArenaData(index)
+	self.tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	self.tooltip:SetMerchantItem(index)
 	for i=1, self.tooltip:NumLines() do
 		local text = string.lower(_G["RecorderTooltipTextLeft" .. i]:GetText())
-		
 		local rating = string.match(text, ITEM_REQ_ARENA_RATING_5V5)
 		if( rating ) then
 			return tonumber(rating), 5
