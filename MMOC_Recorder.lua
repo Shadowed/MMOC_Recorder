@@ -527,6 +527,8 @@ end
 -- Add all of the data like title, health, power, faction, etc here
 function Recorder:GetCreatureDB(unit)
 	local guid = UnitGUID(unit)
+	if( not guid ) then return end
+	
 	local npcID, npcType = self.GUID_ID[guid], self.GUID_TYPE[guid]
 	if( not npcID or not npcType ) then return end
 	
