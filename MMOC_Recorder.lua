@@ -771,12 +771,7 @@ function Recorder:LOOT_OPENED()
 			
 			-- We're throttling it by the items unique id, this only applies to things that don't force auto loot, like Champion's Bags
 			if( activeObject.throttleByItem and uniqueID and uniqueID > 0 ) then
-				if( lootedGUID[uniqueID] ) then
-					print("Already recorded this", uniqueID)
-					return
-				end
-				
-				print("Recording", uniqueID)
+				if( lootedGUID[uniqueID] ) then return end
 				lootedGUID[uniqueID] = time + LOOT_EXPIRATION
 			end
 		
