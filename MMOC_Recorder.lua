@@ -246,17 +246,20 @@ function Recorder:GetArenaData(index)
 end
 
 -- Faction discounts
+local lastFaction
 function Recorder:UpdateFactions()
 	-- If you use GetNumFactions, you will miss those that are collapsed
-	local i = 1
-	while( true ) do
+	-- GetFactionInfo() will always return "Other" as the name when that header is shown
+	-- meaning using a while true has the potential to infinite loop if the player is showing the
+	-- Syndicate or Wintersaber factions, this stops that
+	for i=1, 1000 do
 		local name, _, standing, _, _, _, _, _, header = GetFactionInfo(i)
-		if( not name ) then break end
+		if( not name or lastFaction == name ) then break end
 		if( name and not header ) then
 			self.factions[name] = standing
 		end
 		
-		i = i + 1
+		lastFaction = name
 	end
 end
 
