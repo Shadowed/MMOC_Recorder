@@ -47,9 +47,9 @@ function Recorder:InitializeDB()
 	SigrieDB.build = build
 	SigrieDB.locale = GetLocale()
 	SigrieDB.addonVersion = self.version
-	SigrieDB.factions = {}
-	
-	self.factions = SigrieDB.factions
+
+	-- On PLAYER_LOGOUT, this gets written to SigrieDB.factions
+	self.factions = {}
 	self.db = {}
 end
 
@@ -1257,6 +1257,12 @@ function Recorder:PLAYER_LOGOUT()
 	local errorHandler = geterrorhandler()
 	seterrorhandler(serializeError)
 	serializeDatabase(self.db, SigrieDB)
+
+	SigrieDB.factions = SigrieDB.factions or {}
+	for faction in pairs(self.factions) do
+		SigrieDB.factions[faction] = true
+	end
+
 	seterrorhandler(errorHandler)
 end
 
