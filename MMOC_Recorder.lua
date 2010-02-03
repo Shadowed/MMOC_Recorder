@@ -5,7 +5,7 @@ local L = Recorder.L
 local CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo = CanMerchantRepair, GetInboxHeaderInfo, GetInboxItem, GetInboxItemLink, GetInboxNumItems, GetMerchantItemCostInfo
 local GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText = GetMerchantItemCostItem, GetMerchantItemLink, GetNumFactions, GetNumLootItems, GetNumTrainerServices, GetTrainerGreetingText, LootSlotIsItem, UnitAura, GetTitleText
 
-local DEBUG_LEVEL = 0
+local DEBUG_LEVEL = 4
 local ALLOWED_COORD_DIFF = 0.02
 local LOOT_EXPIRATION = 10 * 60
 local ZONE_DIFFICULTY = 0
@@ -374,7 +374,7 @@ Recorder.InteractSpells = {
 	-- Pick Pocket
 	[GetSpellInfo(921) or ""] = {item = true, location = false, parentNPC = true, lootType = "pickpocket"},
 	-- Used when opening an item, such as Champion's Purse
-	["Bag"] = {item = true, location = false, parentItem = true},
+	["Bag"] = {item = true, location = false, parentItem = true, throttleByItem = true},
 	-- Pick Lock
 	--[GetSpellInfo(1804) or ""] = {item = true, location = false, parentItem = true},
 }
@@ -733,7 +733,7 @@ end
 
 -- LOOT TRACKING AND ALL HIS PALS
 function Recorder:CHAT_MSG_ADDON(prefix, message, channel, sender)
-	if( sender == playerName or prefix ~= "Recorder" or ( channel ~= "RAID" and channel ~= "PARTY" ) ) then return end
+	if( sender == playerName or prefix ~= "MMOC" or ( channel ~= "RAID" and channel ~= "PARTY" ) ) then return end
 	
 	local type, arg = string.split(":", message, 2)
 	if( type == "loot" ) then
@@ -752,32 +752,48 @@ end
 function Recorder:LOOT_OPENED()
 	local npcData, isMob
 	local time = GetTime()
+	local activeObject = self.activeSpell.object
 	-- Object set, so looks like we're good
-	if( self.activeSpell.object and self.activeSpell.endTime <= (time + 0.50) ) then
+	if( activeObject and self.activeSpell.endTime <= (time + 0.50) ) then
 		-- We want to save it by the zone, this is really just for Fishing.
-		if( self.activeSpell.object.lootByZone ) then
-			npcData = self:RecordZoneLocation(self.activeSpell.object.lootType)
+		if( activeObject.lootByZone ) then
+			npcData = self:RecordZoneLocation(activeObject.lootType)
 		-- It has a location, meaning it's some sort of object
-		elseif( self.activeSpell.object.location ) then
+		elseif( activeObject.location ) then
 			npcData = self:RecordDataLocation("objects", self.activeSpell.target)
-		-- This has a parent item like Milling, Prospecting or Disenchanting, so record the data their
-		elseif( self.activeSpell.object.parentItem ) then
-			local itemID = tonumber(string.match(self.activeSpell.item, "item:(%d+)"))
+		-- Parent item, Milling, Prospecting, Looting items like Bags, etc
+		elseif( activeObject.parentItem ) then
+			-- Throttle it by the items unique id
+			local itemID, uniqueID = string.match(self.activeSpell.item, "item:(%d+):%d+:%d+:%d+:%d+:%d+:%d+:(%d+)")
+			itemID = tonumber(itemID)
+			uniqueID = tonumber(uniqueID)
+			if( not itemID ) then return end
+			
+			-- We're throttling it by the items unique id, this only applies to things that don't force auto loot, like Champion's Bags
+			if( activeObject.throttleByItem and uniqueID and uniqueID > 0 ) then
+				if( lootedGUID[uniqueID] ) then
+					print("Already recorded this", uniqueID)
+					return
+				end
+				
+				print("Recording", uniqueID)
+				lootedGUID[uniqueID] = time + LOOT_EXPIRATION
+			end
+		
+			-- Still good
 			npcData = self:GetBasicData("items", itemID)
 			
 		-- Has a parent NPC, so skinning, engineering, etc
-		elseif( self.activeSpell.object.parentNPC ) then
+		elseif( activeObject.parentNPC ) then
 			npcData = self:GetCreatureDB("target")
-			npcData[self.activeSpell.object.lootType] = npcData[self.activeSpell.object.lootType] or {}
-			npcData = npcData[self.activeSpell.object.lootType]
+			npcData[activeObject.lootType] = npcData[activeObject.lootType] or {}
+			npcData = npcData[activeObject.lootType]
 		end
 
 	-- If the target exists, is dead, not a player, and it's an actual NPC then we will say we're looting that NPC
 	elseif( UnitExists("target") and UnitIsDead("target") and not UnitIsPlayer("target") ) then
 		local guid = UnitGUID("target")
-		if( not guid or lootedGUID[guid] ) then
-			return
-		end
+		if( not guid or lootedGUID[guid] ) then return end
 		
 		lootedGUID[guid] = time + LOOT_EXPIRATION
 
@@ -790,7 +806,7 @@ function Recorder:LOOT_OPENED()
 			-- This is necessary because sending it just to raid or party without checking can cause not in raid errors
 			local instanceType = select(2, IsInInstance())
 			if( instanceType ~= "arena" and instanceType ~= "pvp" and ( GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0 ) ) then
-				SendAddonMessage("Recorder", string.format("loot:%s", guid), "RAID")
+				SendAddonMessage("MMOC", string.format("loot:%s", guid), "RAID")
 			end
 		end
 	end
