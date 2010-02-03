@@ -836,6 +836,7 @@ end
 
 -- Record items being opened
 local function itemUsed(link)
+	if( not Recorder.activeSpell ) then return end
 	if( Recorder.activeSpell.object and Recorder.activeSpell.object.parentItem and not Recorder.activeSpell.useSet ) then
 		Recorder.activeSpell.item = link
 		Recorder.activeSpell.useSet = true
