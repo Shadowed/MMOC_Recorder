@@ -1179,10 +1179,24 @@ end
 
 -- Cache difficulty so we can't always rechecking it
 function Recorder:UpdateDifficulty()
-	local difficulty = GetInstanceDifficulty()
-	local inInstance, instanceType = IsInInstance()
-	ZONE_DIFFICULTY = instanceType == "raid" and (difficulty + 100) or inInstance and difficulty or 0	
-	debug(1, "Set zone difficulty to %d, %d, %s, %s", ZONE_DIFFICULTY, difficulty, instanceType, tostring(inInstance))
+	if( not IsInInstance() ) then
+		ZONE_DIFFICULTY = "world"
+		debug(1, "Player is not in a zone, set key to world")
+		return
+	end
+
+	local instanceType, difficulty, _, maxPlayers, playerDifficulty, isDynamicInstance = select(2, GetInstanceInfo())
+	local dungeonType = "normal"
+	if( instanceType == "raid" ) then
+		if( ( isDynamicInstance and playerDifficulty == 1 ) or ( not isDynamicInstance and difficulty > 2 ) ) then
+			dungeonType = "heroic"
+		end
+	elseif( difficulty >= 2 ) then
+		dungeonType = "heroic"
+	end
+
+	ZONE_DIFFICULTY = string.format("%s:%s:%s", instanceType, maxPlayers, dungeonType)
+	debug(1, "Set zone key to %s", ZONE_DIFFICULTY)
 end
 
 Recorder.UPDATE_INSTANCE_INFO = Recorder.UpdateDifficulty
