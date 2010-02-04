@@ -119,6 +119,10 @@ function Recorder:ADDON_LOADED(event, addon)
 	--self:RegisterEvent("ITEM_TEXT_READY")
 	self:RegisterEvent("ITEM_TEXT_BEGIN")
 	
+	if( select(2, UnitClass("player")) == "ROGUE" ) then
+		self:RegisterEvent("UI_ERROR_MESSAGE")
+	end
+	
 	self:PLAYER_LEAVING_WORLD()
 end
 
@@ -746,6 +750,27 @@ function Recorder:CHAT_MSG_ADDON(prefix, message, channel, sender)
 	end
 end
 
+-- Simple unit find, mainly to account for things like Pick Pocketing where you can focus or mouseover a mob and use pick pocket
+function Recorder:FindUnit(name)
+	return UnitName("target") == name and "target" or UnitName("focus") == name and "focus" or UnitName("mouseover") == name and "mouseover"
+end
+
+-- Track mobs that can't be pick pocketed
+function Recorder:UI_ERROR_MESSAGE(event, message)
+	if( message ~= SPELL_FAILED_TARGET_NO_POCKETS ) then return end
+
+	if( self.activeSpell.object and self.activeSpell.endTime <= (GetTime() + 0.50) ) then
+		local unit = self:FindUnit(self.activeSpell.target)
+		if( not unit ) then return end
+		
+		local npcData = self:GetCreatureDB(unit)
+		npcData.info = npcData.info or {}
+		npcData.info.noPockets = true
+		
+		debug(3, "Mob %s (%s) has no pockets", self.activeSpell.target, unit)
+	end
+end
+
 local COPPER_AMOUNT = string.gsub(COPPER_AMOUNT, "%%d", "(%%d+)")
 local SILVER_AMOUNT = string.gsub(SILVER_AMOUNT, "%%d", "(%%d+)")
 local GOLD_AMOUNT = string.gsub(GOLD_AMOUNT, "%%d", "(%%d+)")
@@ -785,7 +810,10 @@ function Recorder:LOOT_OPENED()
 			
 		-- Has a parent NPC, so skinning, engineering, etc
 		elseif( activeObject.parentNPC ) then
-			npcData = self:GetCreatureDB("target")
+			local unit = self:FindUnit(self.activeSpell.target)
+			if( not unit ) then return end
+			
+			npcData = self:GetCreatureDB(unit)
 			npcData[activeObject.lootType] = npcData[activeObject.lootType] or {}
 			npcData = npcData[activeObject.lootType]
 		end
@@ -830,6 +858,8 @@ function Recorder:LOOT_OPENED()
 			
 			npcData.coin = npcData.coin or {}
 			table.insert(npcData.coin, (tonumber(string.match(currency, COPPER_AMOUNT)) or 0) + gold + silver)
+			
+			debug(2, "Found %d copper", npcData.coin[#(npcData.coin)])
 		-- Record item data
 		elseif( LootSlotIsItem(i) ) then
 			local link = GetLootSlotLink(i)
