@@ -775,8 +775,38 @@ local COPPER_AMOUNT = string.gsub(COPPER_AMOUNT, "%%d", "(%%d+)")
 local SILVER_AMOUNT = string.gsub(SILVER_AMOUNT, "%%d", "(%%d+)")
 local GOLD_AMOUNT = string.gsub(GOLD_AMOUNT, "%%d", "(%%d+)")
 
+-- So, why do this?
+-- This fixes bugs when mass milling/prospecting mainly, where you have a macro with multiple /use's for different herbs or ores
+-- the events/function calls are inaccurate due to it mostly falling through where it can. It's easier to just go by this method
+-- even if it is slightly ugly :|
+local locksAllowed = {}
+function Recorder:FindByLock()
+	for bag=4, 0, -1 do
+		for slot=1, GetContainerNumSlots(bag) do
+		  -- Make sure the slot is locked
+			if( select(3, GetContainerItemInfo(bag, slot)) ) then
+			  local link = GetContainerItemLink(bag, slot)
+			  -- And we have an item in here of course, pretty sure this can't actually happen if it's locked, but to be safe
+  			if( link ) then
+  			  -- We're expecting to match this one exactly, meaning we have an uniqueid
+    			if( locksAllowed[link] == 2 ) then
+    			  return link
+          else
+            -- No uniqueid, strip it out and do an exact quick, assuming we're looking for an inequal
+            local parseLink = select(2, GetItemInfo(string.match(link, "item:%d+")))
+            if( locksAllowed[parseLink] == 1 ) then
+              return link
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
 function Recorder:LOOT_CLOSED()
 	self.activeSpell.object = nil
+	table.wipe(locksAllowed)
 end
 
 function Recorder:LOOT_OPENED()
@@ -793,8 +823,8 @@ function Recorder:LOOT_OPENED()
 			npcData = self:RecordDataLocation("objects", self.activeSpell.target)
 		-- Parent item, Milling, Prospecting, Looting items like Bags, etc
 		elseif( activeObject.parentItem ) then
-			-- Throttle it by the items unique id
-			local itemID, uniqueID = string.match(self.activeSpell.item, "item:(%d+):%d+:%d+:%d+:%d+:%d+:%d+:(%d+)")
+			-- Throttle it by the items unique id, default to the last known link if finding by lock failed
+			local itemID, uniqueID = string.match(self:FindByLock() or self.activeSpell.item, "item:(%d+):%d+:%d+:%d+:%d+:%d+:%d+:(%d+)")
 			itemID = tonumber(itemID)
 			uniqueID = tonumber(uniqueID)
 			if( not itemID ) then return end
@@ -805,6 +835,8 @@ function Recorder:LOOT_OPENED()
 				lootedGUID[uniqueID] = time + LOOT_EXPIRATION
 			end
 		
+		  debug(4, "Looting item id %d, unique id %d", itemID, uniqueID)
+		  
 			-- Still good
 			npcData = self:GetBasicData("items", itemID)
 			
@@ -881,21 +913,26 @@ function Recorder:LOOT_OPENED()
 end
 
 -- Record items being opened
-local function itemUsed(link)
+local function itemUsed(link, isExact)
 	if( not Recorder.activeSpell ) then return end
+	
 	if( Recorder.activeSpell.object and Recorder.activeSpell.object.parentItem and not Recorder.activeSpell.useSet ) then
+  	locksAllowed[link] = isExact and 2 or 1
+		
 		Recorder.activeSpell.item = link
 		Recorder.activeSpell.useSet = true
 	elseif( not Recorder.activeSpell.endTime or Recorder.activeSpell.endTime <= (time() + 0.30) ) then
+	  locksAllowed[link] = isExact and 2 or 1
+		
 		Recorder.activeSpell.item = link
-		Recorder.activeSpell.endTime = GetTime()
+    Recorder.activeSpell.endTime = GetTime()
 		Recorder.activeSpell.object = Recorder.InteractSpells.Bag
 	end
 end
 
 hooksecurefunc("UseContainerItem", function(bag, slot, target)
 	if( not target ) then
-		itemUsed(GetContainerItemLink(bag, slot))
+		itemUsed(GetContainerItemLink(bag, slot), true)
 	end
 end)
 
@@ -904,7 +941,6 @@ hooksecurefunc("UseItemByName", function(name, target)
 		itemUsed(select(2, GetItemInfo(name)))
 	end
 end)
-
 
 function Recorder:UNIT_SPELLCAST_SENT(event, unit, name, rank, target)
 	if( unit ~= "player" or not self.InteractSpells[name] ) then return end
