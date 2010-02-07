@@ -914,10 +914,10 @@ end
 
 -- Record items being opened
 local function itemUsed(link, isExact)
-	if( not Recorder.activeSpell ) then return end
+	if( not Recorder.activeSpell or not link ) then return end
 	
 	if( Recorder.activeSpell.object and Recorder.activeSpell.object.parentItem and not Recorder.activeSpell.useSet ) then
-  	locksAllowed[link] = isExact and 2 or 1
+		locksAllowed[link] = isExact and 2 or 1
 		
 		Recorder.activeSpell.item = link
 		Recorder.activeSpell.useSet = true
@@ -925,7 +925,7 @@ local function itemUsed(link, isExact)
 	  locksAllowed[link] = isExact and 2 or 1
 		
 		Recorder.activeSpell.item = link
-    Recorder.activeSpell.endTime = GetTime()
+		Recorder.activeSpell.endTime = GetTime()
 		Recorder.activeSpell.object = Recorder.InteractSpells.Bag
 	end
 end
