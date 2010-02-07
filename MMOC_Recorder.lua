@@ -300,10 +300,10 @@ function Recorder:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourc
 		local type = eventType == "SPELL_AURA_APPLIED" and "auras" or "spells"
 		local npcData = self:GetData("npcs", ZONE_DIFFICULTY, self.GUID_ID[sourceGUID])
 		npcData[type] = npcData[type] or {}
-		npcData[type][spellID] = true
 		if( not npcData[type][spellID] ) then
 			debug(4, "%s casting %s %s (%d)", sourceName, type, select(2, ...), spellID)
 		end
+		npcData[type][spellID] = true
 		
 	elseif( eventType == "PARTY_KILL" and bit.band(destFlags, COMBATLOG_OBJECT_REACTION_HOSTILE) == COMBATLOG_OBJECT_REACTION_HOSTILE and bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
 		repGain.npcID = self.GUID_ID[destGUID]
@@ -1186,7 +1186,10 @@ function Recorder:CONFIRM_XP_LOSS()
 end
 
 function Recorder:CONFIRM_BINDER()
-	self:RecordCreatureData("binder", "npc")
+	local unit = UnitExists("npc") and not UnitIsPlayer("npc") and "npc" or UnitExists("target") and not UnitIsPlayer("target") and "target"
+	if( unit ) then
+		self:RecordCreatureData("binder", unit)
+	end
 end
 
 function Recorder:GUILDBANKFRAME_OPENED()
