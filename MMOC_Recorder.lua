@@ -16,6 +16,8 @@ local BATTLEFIELD_TYPES = {["av"] = 1, ["wsg"] = 2, ["ab"] = 3, ["nagrand"] = 4,
 local BATTLEFIELD_MAP = {[L["Alterac Valley"]] = "av", [L["Warsong Gulch"]] = "wsg", [L["Eye of the Storm"]] = "eots", [L["Strand of the Ancients"]] = "sota", [L["Isle of Conquest"]] = "ioc", [L["All Arenas"]] = "all_arenas"}
 -- Items to ignore when looted in a *regular* way
 local IGNORE_LOOT = {[34055] = true}
+-- Daze
+local SPELL_BLACKLIST = {[1604] = true}
 
 local setToAbandon, abandonedName, lootedGUID
 local repGain, lootedGUID = {}, {}
@@ -297,6 +299,8 @@ function Recorder:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourc
 	
 	if( ( eventType == "SPELL_CAST_START" or eventType == "SPELL_CAST_SUCCESS" or eventType == "SPELL_AURA_APPLIED" ) and bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
 		local spellID = ...
+		if( SPELL_BLACKLIST[spellID] ) then return end
+		
 		local type = eventType == "SPELL_AURA_APPLIED" and "auras" or "spells"
 		local npcData = self:GetData("npcs", ZONE_DIFFICULTY, self.GUID_ID[sourceGUID])
 		npcData[type] = npcData[type] or {}
