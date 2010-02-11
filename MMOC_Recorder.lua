@@ -11,7 +11,7 @@ local LOOT_EXPIRATION = 10 * 60
 local ZONE_DIFFICULTY = 0
 
 local npcToDB = {["npc"] = "npcs", ["item"] = "items", ["object"] = "objects"}
-local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000, ["book"] = 0x2000, ["talentwipe"] = 0x4000}
+local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000, ["book"] = 0x2000, ["talentwipe"] = 0x4000, ["arenaorg"] = 0x8000}
 local BATTLEFIELD_TYPES = {["av"] = 1, ["wsg"] = 2, ["ab"] = 3, ["nagrand"] = 4, ["bem"] = 5, ["all_arenas"] = 6, ["eots"] = 7, ["rol"] = 8, ["sota"] = 9, ["dalaran"] = 10, ["rov"] = 11, ["ioc"] = 30, ["all_battlegrounds"] = 32}
 local BATTLEFIELD_MAP = {[L["Alterac Valley"]] = "av", [L["Warsong Gulch"]] = "wsg", [L["Eye of the Storm"]] = "eots", [L["Strand of the Ancients"]] = "sota", [L["Isle of Conquest"]] = "ioc", [L["All Arenas"]] = "all_arenas"}
 -- Items to ignore when looted in a *regular* way
@@ -120,6 +120,7 @@ function Recorder:ADDON_LOADED(event, addon)
 	self:RegisterEvent("PLAYER_LOGIN")
 	--self:RegisterEvent("ITEM_TEXT_READY")
 	self:RegisterEvent("ITEM_TEXT_BEGIN")
+	self:RegisterEvent("PETITION_VENDOR_SHOW")
 	
 	if( select(2, UnitClass("player")) == "ROGUE" ) then
 		self:RegisterEvent("UI_ERROR_MESSAGE")
@@ -1218,6 +1219,11 @@ function Recorder:BATTLEFIELDS_SHOW()
 	end
 end
 
+function Recorder:PETITION_VENDOR_SHOW()
+	if( UnitExists("npc") ) then
+		self:RecordCreatureData("arenaorg", "npc")
+	end
+end
 -- Record book locations
 function Recorder:ITEM_TEXT_BEGIN()
 	-- ItemTextGetCreator() is true if the item is from an user, such as mail letters
