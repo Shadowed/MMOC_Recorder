@@ -1156,7 +1156,9 @@ end
 local merchantData
 function Recorder:MERCHANT_SHOW()
 	merchantData = self:RecordCreatureData("vendor", "npc")
-	self:UpdateMerchantData(merchantData)
+	if( merchantData ) then
+		self:UpdateMerchantData(merchantData)
+	end
 end
 
 function Recorder:MERCHANT_UPDATE()
@@ -1165,7 +1167,9 @@ end
 
 function Recorder:TRAINER_SHOW()
 	local npcData = self:RecordCreatureData("trainer", "npc")
-	self:UpdateTrainerData(npcData)
+	if( npcData ) then
+		self:UpdateTrainerData(npcData)
+	end
 end
 
 function Recorder:PET_STABLE_SHOW()
@@ -1174,11 +1178,13 @@ end
 
 function Recorder:TAXIMAP_OPENED()
 	local npcData = self:RecordCreatureData("flightmaster", "npc")
-	for i=1, NumTaxiNodes() do
-		if( TaxiNodeGetType(i) == "CURRENT" ) then
-			npcData.info.taxiNode = TaxiNodeName(i)
-			debug(3, "Set taxi node to %s.", npcData.info.taxiNode)
-			break
+	if( npcData ) then
+		for i=1, NumTaxiNodes() do
+			if( TaxiNodeGetType(i) == "CURRENT" ) then
+				npcData.info.taxiNode = TaxiNodeName(i)
+				debug(3, "Set taxi node to %s.", npcData.info.taxiNode)
+				break
+			end
 		end
 	end
 end
