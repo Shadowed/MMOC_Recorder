@@ -819,7 +819,9 @@ function Recorder:LOOT_OPENED()
 	local time = GetTime()
 	local activeObject = self.activeSpell.object
 	-- Object set, so looks like we're good
-	if( activeObject and self.activeSpell.endTime <= (time + 0.50) ) then
+	if( activeObject and self.activeSpell.endTime > 0 and self.activeSpell.endTime <= (time + 0.50) ) then
+		self.activeSpell.endTime = -1
+		
 		-- We want to save it by the zone, this is really just for Fishing.
 		if( activeObject.lootByZone ) then
 			npcData = self:RecordZoneLocation(activeObject.lootType)
