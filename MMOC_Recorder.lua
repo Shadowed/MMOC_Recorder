@@ -190,7 +190,7 @@ local npcTypeMetatable = {
 			npcType = "object"
 		elseif( type == 1024 ) then
 			npcType = "item"
-		elseif( bit.band(type, 0x00f) == 3 ) then
+		elseif( bit.band(type, 0x00f) == 3 or bit.band(type, 0x00f) == 5 ) then
 			npcType = "npc"
 		end
 		
@@ -1124,9 +1124,8 @@ function Recorder:QuestProgress()
 		self:SaveQueuedQuest()
 		
 		-- Store it by name temporarily as the NPC starting and ending it
-		local id = questGiverID * (questGiverType == "npc" and 1 or -1)
 		questByName.name = GetTitleText()
-		questByName.id = id
+		questByName.id = questGiverID * (questGiverType == "npc" and 1 or -1)
 	end
 end
 
