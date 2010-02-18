@@ -560,6 +560,8 @@ function Recorder:RecordCreatureData(type, unit)
 	npcData.info.name = UnitName(unit)
 	npcData.info.reaction = UnitReaction("player", unit)
 	npcData.info.faction = self:GetFaction(unit)
+	npcData.info.factionGroup = UnitFactionGroup(unit)
+	npcData.info.pvp = UnitIsPVP(unit)
 	
 	-- Store by level for these
 	if( level and not self.playerIsDrunk ) then
