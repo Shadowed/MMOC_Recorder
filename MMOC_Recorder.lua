@@ -1295,21 +1295,6 @@ Recorder.PLAYER_ENTERING_WORLD = Recorder.UpdateDifficulty
 Recorder.ZONE_CHANGED_NEW_AREA = Recorder.UpdateDifficulty
 
 -- Table writing
--- Encodes text in a way that it won't interfere with the table being loaded
-local map = {	["{"] = "\\" .. string.byte("{"), ["}"] = "\\" .. string.byte("}"),
-				['"'] = "\\" .. string.byte('"'), [";"] = "\\" .. string.byte(";"),
-				["%["] = "\\" .. string.byte("["), ["%]"] = "\\" .. string.byte("]"),
-				["@"] = "\\" .. string.byte("@")}
-local function encode(text)
-	if( not text ) then return nil end
-	
-	for find, replace in pairs(map) do
-		text = string.gsub(text, find, replace)
-	end
-	
-	return text
-end
-
 local function writeTable(tbl)
 	local data = ""
 	for key, value in pairs(tbl) do
@@ -1332,7 +1317,7 @@ local function writeTable(tbl)
 				data = string.format("%s%s=%s;", data, key, tostring(value))
 				-- foo = "bar"
 			else
-				data = string.format("%s%s=[[%s]];", data, key, tostring(encode(value)))
+				data = string.format("%s%s=[[%s]];", data, key, tostring(value))
 			end
 		end
 	end
