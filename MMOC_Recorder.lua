@@ -473,9 +473,8 @@ function Recorder:RecordZoneLocation(type)
 end
 
 -- Location, location, location
-function Recorder:RecordDataLocation(npcType, npcID, isGeneric)
+function Recorder:RecordDataLocation(npcType, npcID)
 	local x, y, zone, level = self:RecordLocation()
-	local coordModifier = isGeneric and 200 or 0
 	local npcData = self:GetData(npcType, ZONE_DIFFICULTY, npcID)
 	npcData.coords = npcData.coords or {}
 	
@@ -500,36 +499,26 @@ function Recorder:RecordDataLocation(npcType, npcID, isGeneric)
 	for i=1, #(npcData.coords), 5 do
 		local npcX, npcY, npcZone, npcLevel, npcCount = npcData.coords[i], npcData.coords[i + 1], npcData.coords[i + 2], npcData.coords[i + 3], npcData.coords[i + 4]
 		if( npcLevel == level and npcZone == zone ) then
-			-- If the recorded one is a generic coord, will check against the "normal" one to see if we can merge them
-			-- if they are both generics, will readd the 200 modifier
-			local modifier = 0
-			if( npcX >= 200 and npcY >= 200 ) then
-				npcX = npcX - 200
-				npcY = npcY - 200
-				
-				modifier = isGeneric and 200 or 0
-			end
-			
 			local xDiff, yDiff = math.abs(npcX - x), math.abs(npcY - y)
 			if( xDiff <= ALLOWED_COORD_DIFF and yDiff <= ALLOWED_COORD_DIFF ) then
-				npcData.coords[i] = tonumber(string.format("%.2f", (npcX + x) / 2)) + modifier
-				npcData.coords[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2)) + modifier
+				npcData.coords[i] = tonumber(string.format("%.2f", (npcX + x) / 2))
+				npcData.coords[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2))
 				npcData.coords[i + 4] = npcCount + 1
 				
-				debug(3, "Recording npc %s (%s) location at %.2f, %.2f in %s (%d level), counter %d, generic %s", npcID, npcType, x, y, zone, level, npcData.coords[i + 4], tostring(isGeneric))
+				debug(3, "Recording npc %s (%s) location at %.2f, %.2f in %s (%d level), counter %d", npcID, npcType, x, y, zone, level, npcData.coords[i + 4])
 				return npcData
 			end
 		end
 	end
 	
 	-- No data yet
-	table.insert(npcData.coords, x + coordModifier)
-	table.insert(npcData.coords, y + coordModifier)
+	table.insert(npcData.coords, x)
+	table.insert(npcData.coords, y)
 	table.insert(npcData.coords, zone)
 	table.insert(npcData.coords, level)
 	table.insert(npcData.coords, 1)
 	
-	debug(3, "Recording npc %s location at %.2f, %.2f in %s (%d level), generic %s", npcID, x, y, zone, level, tostring(isGeneric))
+	debug(3, "Recording npc %s location at %.2f, %.2f in %s (%d level)", npcID, x, y, zone, level)
 	return npcData
 end
 
@@ -577,7 +566,7 @@ function Recorder:RecordCreatureData(type, unit)
 		self:RecordCreatureType(npcData, type)
 	end
 
-	self:RecordDataLocation(npcToDB[npcType], npcID, type == "generic")
+	self:RecordDataLocation(npcToDB[npcType], npcID)
 	return npcData
 end
 
