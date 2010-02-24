@@ -833,9 +833,11 @@ function Recorder:LOOT_OPENED()
 		-- Parent item, Milling, Prospecting, Looting items like Bags, etc
 		elseif( activeObject.parentItem ) then
 			-- Throttle it by the items unique id, default to the last known link if finding by lock failed
-			local itemID, uniqueID = string.match(self:FindByLock() or self.activeSpell.item, "item:(%d+):%d+:%d+:%d+:%d+:%d+:%d+:(%d+)")
+			local itemID, uniqueID = string.match(self.activeSpell.useLock and self:FindByLock() or self.activeSpell.item, "item:(%d+):%d+:%d+:%d+:%d+:%d+:%d+:(%d+)")
 			itemID = tonumber(itemID)
 			uniqueID = tonumber(uniqueID)
+			
+			self.activeSpell.useLock = nil
 			if( not itemID ) then return end
 			
 			-- We're throttling it by the items unique id, this only applies to things that don't force auto loot, like Champion's Bags
@@ -844,7 +846,7 @@ function Recorder:LOOT_OPENED()
 				lootedGUID[uniqueID] = time + LOOT_EXPIRATION
 			end
 		
-		  debug(4, "Looting item id %d, unique id %d", itemID, uniqueID)
+		  	debug(4, "Looting item id %s, unique id %d", GetItemInfo(itemID) or itemID, uniqueID)
 		  
 			-- Still good
 			npcData = self:GetBasicData("items", itemID)
@@ -917,7 +919,7 @@ function Recorder:LOOT_OPENED()
 				npcData.loot[itemID].minStack = npcData.loot[itemID].minStack and math.min(npcData.loot[itemID].minStack, quantity) or quantity
 				npcData.loot[itemID].maxStack = npcData.loot[itemID].maxStack and math.max(npcData.loot[itemID].maxStack, quantity) or quantity
 				
-				debug(2, "Looted item %d from them %d out of %d times", itemID, npcData.loot[itemID].looted, npcData.looted)
+				debug(2, "Looted item %s from them %d out of %d times", GetItemInfo(itemID) or itemID, npcData.loot[itemID].looted, npcData.looted)
 			end
 		end
 	end
@@ -931,11 +933,13 @@ local function itemUsed(link, isExact)
 		locksAllowed[link] = isExact and 2 or 1
 		
 		Recorder.activeSpell.item = link
+		Recorder.activeSpell.useLock = true
 		Recorder.activeSpell.useSet = true
 	elseif( not Recorder.activeSpell.endTime or Recorder.activeSpell.endTime <= (time() + 0.30) ) then
 	  locksAllowed[link] = isExact and 2 or 1
 		
 		Recorder.activeSpell.item = link
+		Recorder.activeSpell.useLock = true
 		Recorder.activeSpell.endTime = GetTime()
 		Recorder.activeSpell.object = Recorder.InteractSpells.Bag
 	end
