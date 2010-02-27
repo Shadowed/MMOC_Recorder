@@ -11,7 +11,7 @@ local LOOT_EXPIRATION = 10 * 60
 local ZONE_DIFFICULTY = 0
 
 local npcToDB = {["npc"] = "npcs", ["item"] = "items", ["object"] = "objects"}
-local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000, ["book"] = 0x2000, ["talentwipe"] = 0x4000, ["arenaorg"] = 0x8000}
+local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] = 0x04, ["binder"] = 0x08, ["bank"] = 0x10, ["guildbank"] = 0x20, ["canrepair"] = 0x40, ["flightmaster"] = 0x80, ["stable"] = 0x100, ["tabard"] = 0x200, ["vendor"] = 0x400, ["trainer"] = 0x800, ["spiritres"] = 0x1000, ["book"] = 0x2000, ["talentwipe"] = 0x4000, ["arenaorg"] = 0x8000, ["petition"] = 0x10000}
 local BATTLEFIELD_TYPES = {["av"] = 1, ["wsg"] = 2, ["ab"] = 3, ["nagrand"] = 4, ["bem"] = 5, ["all_arenas"] = 6, ["eots"] = 7, ["rol"] = 8, ["sota"] = 9, ["dalaran"] = 10, ["rov"] = 11, ["ioc"] = 30, ["all_battlegrounds"] = 32}
 local BATTLEFIELD_MAP = {[L["Alterac Valley"]] = "av", [L["Warsong Gulch"]] = "wsg", [L["Eye of the Storm"]] = "eots", [L["Strand of the Ancients"]] = "sota", [L["Isle of Conquest"]] = "ioc", [L["All Arenas"]] = "all_arenas"}
 -- Items to ignore when looted in a *regular* way
@@ -457,7 +457,7 @@ function Recorder:RecordZoneLocation(type)
 				zoneData.coords[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2))
 				zoneData.coords[i + 4] = npcCount + 1
 				
-				debug(3, "Recording %s location at %.2f, %.2f in %s (%d level), counter %d", type, x, y, zone, level, zoneData.coords[i + 4])
+				debug(3, "Recording %s location at %.2f, %.2f in %s (%d floor), counter %d", type, x, y, zone, level, zoneData.coords[i + 4])
 				return zoneData
 			end
 		end
@@ -467,7 +467,7 @@ function Recorder:RecordZoneLocation(type)
 	table.insert(zoneData.coords, y)
 	table.insert(zoneData.coords, level)
 	table.insert(zoneData.coords, 1)
-	debug(3, "Recording %s location at %.2f, %.2f in %s (%d level), counter %d", type, x, y, zone, level, 1)
+	debug(3, "Recording %s location at %.2f, %.2f in %s (%d floor), counter %d", type, x, y, zone, level, 1)
 	
 	return zoneData
 end
@@ -505,7 +505,7 @@ function Recorder:RecordDataLocation(npcType, npcID)
 				npcData.coords[i + 1] = tonumber(string.format("%.2f", (npcY + y) / 2))
 				npcData.coords[i + 4] = npcCount + 1
 				
-				debug(3, "Recording npc %s (%s) location at %.2f, %.2f in %s (%d level), counter %d", npcID, npcType, x, y, zone, level, npcData.coords[i + 4])
+				debug(3, "Recording npc %s (%s) location at %.2f, %.2f in %s (%d floor), counter %d", npcID, npcType, x, y, zone, level, npcData.coords[i + 4])
 				return npcData
 			end
 		end
@@ -518,7 +518,7 @@ function Recorder:RecordDataLocation(npcType, npcID)
 	table.insert(npcData.coords, level)
 	table.insert(npcData.coords, 1)
 	
-	debug(3, "Recording npc %s location at %.2f, %.2f in %s (%d level)", npcID, x, y, zone, level)
+	debug(3, "Recording npc %s location at %.2f, %.2f in %s (%d floor)", npcID, x, y, zone, level)
 	return npcData
 end
 
@@ -810,7 +810,7 @@ function Recorder:LOOT_OPENED()
 	local time = GetTime()
 	local activeObject = self.activeSpell.object
 	-- Object set, so looks like we're good
-	if( activeObject and self.activeSpell.endTime > 0 and self.activeSpell.endTime <= (time + 0.50) ) then
+	if( activeObject and self.activeSpell.endTime > 0 and (time + 0.50) <= self.activeSpell.endTime ) then
 		self.activeSpell.endTime = -1
 		
 		-- We want to save it by the zone, this is really just for Fishing.
@@ -833,7 +833,7 @@ function Recorder:LOOT_OPENED()
 				lootedGUID[uniqueID] = time + LOOT_EXPIRATION
 			end
 		
-		  debug(4, "Looting item id %d, unique id %d", itemID, uniqueID)
+		  debug(4, "Looting item id %s, unique id %d", GetItemInfo(itemID), uniqueID)
 		  
 			-- Still good
 			npcData = self:GetBasicData("items", itemID)
@@ -906,7 +906,7 @@ function Recorder:LOOT_OPENED()
 				npcData.loot[itemID].minStack = npcData.loot[itemID].minStack and math.min(npcData.loot[itemID].minStack, quantity) or quantity
 				npcData.loot[itemID].maxStack = npcData.loot[itemID].maxStack and math.max(npcData.loot[itemID].maxStack, quantity) or quantity
 				
-				debug(2, "Looted item %d from them %d out of %d times", itemID, npcData.loot[itemID].looted, npcData.looted)
+				debug(2, "Looted item %s from them %d out of %d times", GetItemInfo(itemID), npcData.loot[itemID].looted, npcData.looted)
 			end
 		end
 	end
@@ -1010,7 +1010,7 @@ function Recorder:RecordQuestPOI(questID)
 	table.insert(questData.poi, currentLevel)
 	table.insert(questData.poi, currentZone)
 
-	debug(3, "Recording quest poi %s location at %.2f, %.2f, obj %d, in %s (%d level)", questID, posX, posY, objectiveID, currentZone, currentLevel)
+	debug(3, "Recording quest poi %s location at %.2f, %.2f, obj %d, in %s (%d floor)", questID, posX, posY, objectiveID, currentZone, currentLevel)
 end
 
 function Recorder:WORLD_MAP_UPDATE()
@@ -1030,14 +1030,13 @@ function Recorder:QUEST_LOG_UPDATE(event)
 	local foundQuests, index = 0, 1
 	local numQuests = select(2, GetNumQuestLogEntries())
 	while( foundQuests <= numQuests ) do
-		local questName, _, _, _, isHeader = GetQuestLogTitle(index)
+		local questName, _, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
 		if( not questName ) then break end
 		
 		if( not isHeader ) then
 			foundQuests = foundQuests + 1
 			
-			local questID = string.match(GetQuestLink(index), "quest:(%d+)")
-			tempQuestLog[tonumber(questID)] = true
+			tempQuestLog[questID] = true
 			
 			-- If the quest log has it, then will be able to get the GUID for it
 			if( questByName.name == questName ) then
@@ -1061,7 +1060,18 @@ function Recorder:QUEST_LOG_UPDATE(event)
 				local questData = self:GetBasicData("quests", questID)
 				questData.startsID = questGiverID * (questGiverType == "npc" and 1 or -1)
 				
-				debug(1, "Quest #%d starts at %s #%d.", questID, questGiverType or "nil", questGiverID or -1)
+				for i=1, foundQuests do
+					local logID = GetQuestIndexForTimer(i)
+					if( logID and select(9, GetQuestLogTitle(logID)) == questID ) then
+						timer = select(i, GetQuestTimers())
+						timer = math.ceil(timer / 10) * 10
+						
+						questData.timer = questData.timer and math.max(questData.timer, timer) or timer
+					end
+				end
+				
+				
+				debug(1, "Quest #%d starts at %s #%d, timer? %s.", questID, questGiverType or "nil", questGiverID or -1, questData.timer and (questData.timer .. " seconds") or "none")
 				self:RecordQuestPOI(questID)
 			end
 		end
