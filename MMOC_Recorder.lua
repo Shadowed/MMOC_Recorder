@@ -15,7 +15,7 @@ local NPC_TYPES = {["mailbox"] = 0x01, ["auctioneer"] = 0x02, ["battlemaster"] =
 local BATTLEFIELD_TYPES = {["av"] = 1, ["wsg"] = 2, ["ab"] = 3, ["nagrand"] = 4, ["bem"] = 5, ["all_arenas"] = 6, ["eots"] = 7, ["rol"] = 8, ["sota"] = 9, ["dalaran"] = 10, ["rov"] = 11, ["ioc"] = 30, ["all_battlegrounds"] = 32}
 local BATTLEFIELD_MAP = {[L["Alterac Valley"]] = "av", [L["Warsong Gulch"]] = "wsg", [L["Eye of the Storm"]] = "eots", [L["Strand of the Ancients"]] = "sota", [L["Isle of Conquest"]] = "ioc", [L["All Arenas"]] = "all_arenas"}
 -- Items to ignore when looted in a *regular* way
-local IGNORE_LOOT = {[11082] = true, [34055] = true, [16203] = true, [10939] = true, [11135] = true, [11175] = true, [22446] = true, [10998] = true, [34056] = true, [16202] = true, [10938] = true, [11134] = true, [11174] = true, [2244] = true}
+local IGNORE_LOOT = {[11082] = true, [34055] = true, [16203] = true, [10939] = true, [11135] = true, [11175] = true, [22446] = true, [10998] = true, [34056] = true, [16202] = true, [10938] = true, [11134] = true, [11174] = true, [2244] = true, [34054] = true}
 -- Daze
 local SPELL_BLACKLIST = {[1604] = true}
 
