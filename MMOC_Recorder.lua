@@ -825,9 +825,11 @@ function Recorder:LOOT_OPENED()
 		-- Parent item, Milling, Prospecting, Looting items like Bags, etc
 		elseif( activeObject.parentItem ) then
 			-- Throttle it by the items unique id, default to the last known link if finding by lock failed
-			local itemID, uniqueID = string.match(self:FindByLock() or self.activeSpell.item, "item:(%d+):%d+:%d+:%d+:%d+:%d+:%d+:(%d+)")
+			local itemID, uniqueID = string.match(self.activeSpell.useLock and self:FindByLock() or self.activeSpell.item, "item:(%d+):%d+:%d+:%d+:%d+:%d+:%d+:(%d+)")
 			itemID = tonumber(itemID)
 			uniqueID = tonumber(uniqueID)
+			
+			self.activeSpell.useLock = nil
 			if( not itemID ) then return end
 			
 			-- We're throttling it by the items unique id, this only applies to things that don't force auto loot, like Champion's Bags
@@ -836,7 +838,7 @@ function Recorder:LOOT_OPENED()
 				lootedGUID[uniqueID] = time + LOOT_EXPIRATION
 			end
 		
-		  debug(4, "Looting item id %s, unique id %d", GetItemInfo(itemID), uniqueID)
+			debug(4, "Looting item id %s, unique id %d", GetItemInfo(itemID), uniqueID)
 		  
 			-- Still good
 			npcData = self:GetBasicData("items", itemID)
@@ -923,11 +925,13 @@ local function itemUsed(link, isExact)
 		locksAllowed[link] = isExact and 2 or 1
 		
 		Recorder.activeSpell.item = link
+		Recorder.activeSpell.useLock = true
 		Recorder.activeSpell.useSet = true
 	elseif( not Recorder.activeSpell.endTime or Recorder.activeSpell.endTime <= (time() + 0.30) ) then
 	  locksAllowed[link] = isExact and 2 or 1
 		
 		Recorder.activeSpell.item = link
+		Recorder.activeSpell.useLock = true
 		Recorder.activeSpell.endTime = GetTime()
 		Recorder.activeSpell.object = Recorder.InteractSpells.Bag
 	end
