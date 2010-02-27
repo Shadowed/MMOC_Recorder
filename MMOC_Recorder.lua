@@ -927,8 +927,8 @@ local function itemUsed(link, isExact)
 		Recorder.activeSpell.item = link
 		Recorder.activeSpell.useLock = true
 		Recorder.activeSpell.useSet = true
-	elseif( Recorder.activeSpell.endTime < 0 or (GetTime() - Recorder.activeSpell.endTime) <= 0.30 ) then
-	  locksAllowed[link] = isExact and 2 or 1
+	else
+		locksAllowed[link] = isExact and 2 or 1
 		
 		Recorder.activeSpell.item = link
 		Recorder.activeSpell.useLock = true
