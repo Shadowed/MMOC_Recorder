@@ -307,7 +307,10 @@ function Recorder:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, sourc
 		npcData[type] = npcData[type] or {}
 		if( not npcData[type][spellID] ) then
 			debug(4, "%s casting %s %s (%d)", sourceName, type, select(2, ...), spellID)
+			npcData.info = npcData.info or {}
+			npcData.info.name = sourceName
 		end
+
 		npcData[type][spellID] = true
 		
 	elseif( eventType == "PARTY_KILL" and bit.band(destFlags, COMBATLOG_OBJECT_REACTION_HOSTILE) == COMBATLOG_OBJECT_REACTION_HOSTILE and bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) == COMBATLOG_OBJECT_TYPE_NPC ) then
