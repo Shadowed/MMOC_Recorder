@@ -121,6 +121,7 @@ function Recorder:ADDON_LOADED(event, addon)
 	--self:RegisterEvent("ITEM_TEXT_READY")
 	self:RegisterEvent("ITEM_TEXT_BEGIN")
 	self:RegisterEvent("PETITION_VENDOR_SHOW")
+	self:RegisterEvent("CONFIRM_TALENT_WIPE")
 	
 	if( select(2, UnitClass("player")) == "ROGUE" ) then
 		self:RegisterEvent("UI_ERROR_MESSAGE")
@@ -576,9 +577,18 @@ end
 
 -- Record trainer data
 local playerCache
+function Recorder:CONFIRM_TALENT_WIPE()
+	local npcData = self:GetCreatureDB("npc")
+	if( npcData ) then
+		npcData.info.canReset = CheckTalentMasterDist()
+		
+		debug(4, "NPC can reset talents? %s", tostring(npcData.info.canReset))
+	end
+end
+
 function Recorder:UpdateTrainerData(npcData)
 	-- No sense in recording training data unless the data was reset. It's not going to change
-	if( npcData.taeches ) then return end
+	if( npcData.teaches ) then return end
 	
 	local guid = UnitGUID("npc")
 	local factionDiscount = self:GetFactionDiscount(guid)
