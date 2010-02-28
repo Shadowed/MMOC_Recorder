@@ -253,12 +253,12 @@ function Recorder:GetArenaData(index)
 end
 
 -- Faction discounts
-local lastFaction
 function Recorder:UpdateFactions()
 	-- If you use GetNumFactions, you will miss those that are collapsed
 	-- GetFactionInfo() will always return "Other" as the name when that header is shown
 	-- meaning using a while true has the potential to infinite loop if the player is showing the
 	-- Syndicate or Wintersaber factions, this stops that
+	local lastFaction
 	for i=1, 1000 do
 		local name, _, standing, _, _, _, _, _, header = GetFactionInfo(i)
 		if( not name or lastFaction == name ) then break end
@@ -275,6 +275,7 @@ function Recorder:GetFaction(guid)
 	self:UpdateFactions()
 	
 	local faction
+	self.tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	self.tooltip:SetHyperlink(string.format("unit:%s", guid))
 	for i=1, self.tooltip:NumLines() do
 		local text = _G["RecorderTooltipTextLeft" .. i]:GetText()
