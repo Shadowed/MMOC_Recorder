@@ -601,6 +601,7 @@ function Recorder:UpdateTrainerData(npcData)
 		local offset, numSpells = select(3, GetSpellTabInfo(GetNumSpellTabs()))
 		for id=1, (offset + numSpells) do
 			local spellName, spellRank = GetSpellName(id, BOOKTYPE_SPELL)
+			self.tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 			self.tooltip:SetSpell(id, BOOKTYPE_SPELL)
 			
 			local spellID = select(3, self.tooltip:GetSpell())
